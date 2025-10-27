@@ -4,5 +4,5 @@ litellm
 matplotlib
 pandas
 requests
-transformers
-torch
+transformers==4.43.2
+torch>=2.3.0
