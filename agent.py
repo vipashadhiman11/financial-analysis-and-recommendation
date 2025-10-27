@@ -156,7 +156,18 @@ if st.button("Submit", type="primary"):
     )
 
     try:
-        response = crew.kickoff(inputs={"topic": inputStock})
+        # --- ✅ Manually call the tool to fetch articles ---
+        articles = get_articles_APItube(inputStock)
+    if "error" in articles:
+        st.error(f"❌ Error fetching articles: {articles['error']}")
+    else:
+        st.success(f"✅ {len(articles)} articles fetched for {inputStock}")
+
+    # Pass to Crew without requiring model tool invocation
+    response = crew.kickoff(inputs={"topic": inputStock, "articles": articles})
+    st.write("Analysing trends for: ", inputStock)
+    st.write("Result:", response.raw)
+
         st.write("Analysing trends for: ", inputStock)
         st.write("Result:", response.raw)
 
