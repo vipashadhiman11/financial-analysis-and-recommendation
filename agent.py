@@ -13,7 +13,7 @@ st.set_page_config(page_title = "Market Trends Analyst", layout = "centered")
 st.title("Your Financial Advisor")
 st.write('Hello, I am your financial advisor. I will give you a complete analysis of your stock or organisation. I will also recomment you if you should Buy/ Sell or Hold the stock :sunglasses:')
 
-inputStock = st.text_input("Enter your Organisation:")
+inputStock = st.text_input("Enter stock name or company name:")
 # if user_name:
 
 if st.button("Submit", type="primary"):
