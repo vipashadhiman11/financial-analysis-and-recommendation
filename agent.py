@@ -173,7 +173,113 @@ if st.button("Submit", type="primary"):
         response = crew.kickoff(inputs = {"topic": inputStock})
         st.write("Analysing trends for: ", inputStock)
         st.write("Result:", response.raw)
-    
+
+            # ================== 📊 Sentiment Visualization ===================
+        sentiments = []
+        try:
+            with open("articles.txt", "r") as file:
+                for line in file:
+                    try:
+                        article = eval(line.strip())
+                        sentiments.append(float(article.get('sentiment', 0)))
+                    except:
+                        continue
+        except FileNotFoundError:
+            sentiments = []
+
+        if sentiments:
+            # Convert sentiment scores to labels
+            labels = []
+            for s in sentiments:
+                if s > 0.05:
+                    labels.append("Positive")
+                elif s < -0.05:
+                    labels.append("Negative")
+                else:
+                    labels.append("Neutral")
+
+            sentiment_df = pd.DataFrame({"Sentiment": labels})
+            sentiment_counts = sentiment_df['Sentiment'].value_counts()
+
+            st.subheader("📊 Sentiment Overview")
+            col1, col2, col3 = st.columns(3)
+            col1.metric("🟢 Positive", int(sentiment_counts.get("Positive", 0)))
+            col2.metric("🔴 Negative", int(sentiment_counts.get("Negative", 0)))
+            col3.metric("⚪ Neutral", int(sentiment_counts.get("Neutral", 0)))
+
+            # --- 🥧 Pie Chart ---
+            import matplotlib.pyplot as plt
+            fig, ax = plt.subplots()
+            ax.pie(
+                sentiment_counts.values,
+                labels=sentiment_counts.index,
+                autopct='%1.1f%%',
+                startangle=90,
+                colors=['green', 'red', 'gray']
+            )
+            ax.axis('equal')
+            st.pyplot(fig)
+
+            # --- 📊 Bar chart ---
+            st.bar_chart(sentiment_df['Sentiment'].value_counts())
+
+            # --- 📅 Sentiment Trend Line Chart ---
+            trend_data = []
+            try:
+                with open("articles.txt", "r") as file:
+                    for line in file:
+                        try:
+                            article = eval(line.strip())
+                            s = float(article.get('sentiment', 0))
+                            d = article.get('published_at', '')
+                            if d:
+                                trend_data.append({"date": d.split("T")[0], "sentiment": s})
+                        except:
+                            continue
+            except FileNotFoundError:
+                trend_data = []
+
+            if trend_data:
+                trend_df = pd.DataFrame(trend_data)
+                trend_df['date'] = pd.to_datetime(trend_df['date'], errors='coerce')
+                trend_df = trend_df.dropna(subset=['date'])
+                trend_df = trend_df.groupby('date')['sentiment'].mean().reset_index()
+                st.subheader("📈 Sentiment Trend Over Time")
+                st.line_chart(trend_df.set_index('date')['sentiment'])
+            else:
+                st.warning("No trend data available for trend chart.")
+
+            # --- 📢 Final Recommendation Banner ---
+            st.subheader("📌 Investment Recommendation")
+            overall_sentiment_score = sum(sentiments) / len(sentiments)
+
+            if overall_sentiment_score > 0.05:
+                st.markdown(
+                    "<div style='background-color:#d4edda;padding:15px;border-radius:10px;'>"
+                    "<h3 style='color:#155724;'>🟢 Strong sentiment detected — Recommendation: <b>BUY</b></h3>"
+                    "<p>The overall market mood for this stock appears positive. Consider buying or holding for upside potential.</p>"
+                    "</div>",
+                    unsafe_allow_html=True
+                )
+            elif overall_sentiment_score < -0.05:
+                st.markdown(
+                    "<div style='background-color:#f8d7da;padding:15px;border-radius:10px;'>"
+                    "<h3 style='color:#721c24;'>🔴 Negative sentiment detected — Recommendation: <b>SELL</b></h3>"
+                    "<p>Market sentiment is weak. You may consider selling or avoiding this stock currently.</p>"
+                    "</div>",
+                    unsafe_allow_html=True
+                )
+            else:
+                st.markdown(
+                    "<div style='background-color:#e2e3e5;padding:15px;border-radius:10px;'>"
+                    "<h3 style='color:#383d41;'>⚪ Neutral sentiment detected — Recommendation: <b>HOLD</b></h3>"
+                    "<p>Sentiment is mixed. It may be wise to wait and watch before making major decisions.</p>"
+                    "</div>",
+                    unsafe_allow_html=True
+                )
+        else:
+            st.warning("No sentiment data available to display charts.")
+
         
     except Exception as e:
         st.write(f"An error occured: {e}")
