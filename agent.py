@@ -75,5 +75,11 @@ if st.button("Submit", type="primary"):
 
     # 🧠 Crew AI setup
     collector = Agent(
-        role="Articles collector",
-        goal="Coll
+    role="Articles collector",
+    goal="Collect articles for a given topic using tools.",
+    backstory="The topic will be an organisation or stock name.",
+    tools=[get_articles_APItube],
+    llm=llm,
+    allow_delegation=False,
+    verbose=False
+)
