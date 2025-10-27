@@ -4,3 +4,5 @@ numpy==1.26.2
 matplotlib==3.8.2
 crewai
 litellm
+crewai_tools
+python-dotenv
