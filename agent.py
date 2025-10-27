@@ -118,7 +118,8 @@ if st.button("Submit", type="primary"):
 
     # 🚀 Run Crew and fetch results
     try:
-        articles = get_articles_APItube(inputStock)
+        articles = get_articles_APItube.func(inputStock)
+
         if isinstance(articles, dict) and "error" in articles:
             st.error(f"❌ Error fetching articles: {articles['error']}")
         else:
