@@ -156,12 +156,23 @@ if st.button("Submit", type="primary"):
     )
 
     try:
-        # --- ✅ Manually call the tool to fetch articles ---
-        articles = get_articles_APItube(inputStock)
-    if "error" in articles:
+    # ✅ Manually call the tool to fetch articles
+    articles = get_articles_APItube(inputStock)
+
+    # 🛑 If error during fetching
+    if isinstance(articles, dict) and "error" in articles:
         st.error(f"❌ Error fetching articles: {articles['error']}")
     else:
         st.success(f"✅ {len(articles)} articles fetched for {inputStock}")
+
+        # 🎯 Kick off Crew without relying on model tool invocation
+        response = crew.kickoff(inputs={"topic": inputStock, "articles": articles})
+        st.write("Analysing trends for: ", inputStock)
+        st.write("Result:", response.raw)
+
+except Exception as e:
+    st.error(f"⚠️ Unexpected error during article fetch or analysis: {e}")
+
 
     # Pass to Crew without requiring model tool invocation
     response = crew.kickoff(inputs={"topic": inputStock, "articles": articles})
