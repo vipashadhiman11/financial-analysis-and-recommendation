@@ -7,7 +7,6 @@ import streamlit as st
 
 load_dotenv()
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
-# GROQ_API_KEY="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"
 
 st.set_page_config(page_title = "Market Trends Analyst", layout = "centered")
 st.title("Your Financial Advisor")
@@ -170,7 +169,7 @@ if st.button("Submit", type="primary"):
     
     try:
         response = crew.kickoff(inputs = {"topic": inputStock})
-        st.write("You entered: ", inputStock)
+        st.write("Analysing trends for: ", inputStock)
         st.write("Result:", response.raw)
     
         
