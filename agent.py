@@ -25,50 +25,64 @@ if st.button("Submit", type="primary"):
         )
     
     @tool("get_articles_APItube")
-    def get_articles_APItube(entity: str) -> list[list]:
-      """
-      This function will take the entity as an input and returns the list of all articles collected with their sentiment.
-    
-      args:
-        entity: name of any organisation or stock 
-      """
-      try:
+def get_articles_APItube(entity: str) -> list[list]:
+    """
+    Fetch articles related to a company or stock and save them locally.
+    Returns: list of articles with sentiment scores.
+    """
+    try:
         print("Running API")
         articles = []
-        APITUBE_API_KEY="api_live_auBHrOWRNh2UGkBZaczSeeOM5GNDnHd3ZqJNFbTT3gHUvg"
-        # today = date.today()
-        # last_week_same_day = today - timedelta(weeks=1)
-        url = "https://api.apitube.io/v1/news/everything?title="+entity+"&published_at.start=2025-10-20&published_at.end=2025-10-25&sort.order=desc&language.code=en&api_key="+APITUBE_API_KEY
+        APITUBE_API_KEY = "api_live_auBHrOWRNh2UGkBZaczSeeOM5GNDnHd3ZqJNFbTT3gHUvg"
+
+        # 👉 Extend date range to ensure we get results
+        url = (
+            f"https://api.apitube.io/v1/news/everything?"
+            f"title={entity}&published_at.start=2025-09-01&published_at.end=2025-10-28"
+            f"&sort.order=desc&language.code=en&api_key={APITUBE_API_KEY}"
+        )
+
         response = requests.get(url).json()
         count = 0
-        if response["status"] == "ok":
-          for result in response["results"]:
-            count+=1
-            article = {}
-            article["article_body"] = result["body"]
-            article["sentiment"] = result["sentiment"]["overall"]["score"]
-            articles.append(article)
-          while response["has_next_pages"]:
-            if count<20:
-              next_page_url = response["next_page"]
-              next_page_response = requests.get(url).json()
-              if response["status"] == "ok":
-                for result in response["results"]:
-                  count+=1
-                  article = {}
-                  article["article_body"] = result["body"]
-                  article['sentiment'] = result["sentiment"]["overall"]["score"]
-                  articles.append(article)
-            else:
-              break
-        print(articles)
+
+        if response.get("status") == "ok":
+            for result in response.get("results", []):
+                count += 1
+                article = {
+                    "article_body": result.get("body", ""),
+                    "sentiment": result.get("sentiment", {}).get("overall", {}).get("score", 0),
+                    "published_at": result.get("published_at", "")
+                }
+                articles.append(article)
+
+            while response.get("has_next_pages"):
+                if count < 30:  # ✅ allow more results
+                    next_page_url = response.get("next_page")
+                    if not next_page_url:
+                        break
+                    response = requests.get(next_page_url).json()
+                    if response.get("status") == "ok":
+                        for result in response.get("results", []):
+                            count += 1
+                            article = {
+                                "article_body": result.get("body", ""),
+                                "sentiment": result.get("sentiment", {}).get("overall", {}).get("score", 0),
+                                "published_at": result.get("published_at", "")
+                            }
+                            articles.append(article)
+                else:
+                    break
+
+        # 📝 Save articles for charting
         with open("articles.txt", "w") as file:
-          for article in articles:
-            file.write(str(article)+"\n")
-        print("articles"+articles)
+            for article in articles:
+                file.write(str(article) + "\n")
+
+        print(f"✅ Saved {len(articles)} articles")
         return articles
-      except Exception as e:
-          return {"error": f"Failed to read URL {e}"}
+
+    except Exception as e:
+        return {"error": f"Failed to fetch articles: {e}"}
 
     @tool("sentiment_analysis")
     def sentiment_analysis(articles: list[str]) -> str:
