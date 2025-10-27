@@ -10,13 +10,6 @@ from crewai import Agent, Task, Crew, LLM, Process
 from crewai.tools import tool
 from transformers import pipeline
 
-try:
-    from transformers import pipeline
-    print("✅ Transformers loaded successfully")
-except Exception as e:
-    import streamlit as st
-    st.error(f"❌ Transformers not installed properly: {e}")
-
 
 # ==============================
 # 🔑 Load Environment Variables
