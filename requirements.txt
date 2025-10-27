@@ -4,3 +4,5 @@ litellm
 matplotlib
 pandas
 requests
+transformers
+torch
