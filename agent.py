@@ -87,4 +87,7 @@ def sentiment_analysis(articles: list[str]) -> str:
 st.set_page_config(page_title="Market Trends Analyst", layout="centered")
 st.title("Your Financial Advisor")
 st.write(
-    "Hello, I am your f
+    "Hello, I am your financial advisor. "
+    "I will give you a complete analysis of your stock or organisation. "
+    "I will also recommend you if you should Buy/ Sell or Hold the stock 😎"
+)
