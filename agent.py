@@ -24,7 +24,7 @@ inputStock = st.text_input("Enter stock name or company name:")
 if st.button("Submit", type="primary"):
     # ✅ Lightweight model with token limit to prevent rate-limit errors
     llm = LLM(
-        model="groq/gemma-3-4b-it",
+        model="groq/gemini-2.5-flash-lite",
         temperature=0.2,
         top_p=0.9,
         max_tokens=512
