@@ -8,8 +8,9 @@ from crewai import Agent, Task, Crew, LLM, Process
 from crewai.tools import tool as crew_tool
 
 load_dotenv()
-
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+os.environ["LITELLM_DEFAULT_MODEL"] = "openai/gpt-oss-120b"
+os.environ["LITELLM_FALLBACKS"] = ""
 
 st.set_page_config(page_title="Market Trends Analyst", layout="centered")
 st.title("📈 Your Financial Advisor")
@@ -22,70 +23,53 @@ FMP_API_KEY = "ES9nZy86YlYSNkohutKivy2xDUfEq"
 
 def get_gainers(number):
     url = f"https://financialmodelingprep.com/stable/biggest-gainers?apikey={FMP_API_KEY}"
-    
     try:
         response_gainers = requests.get(url, timeout=10).json()
     except Exception as e:
-        st.error(f"Error fetching gainers from FMP: {e}")
-        return [{"name": "API Fetch Failed", "percentage": 0}]
-
+        st.error(f"Error fetching gainers: {e}")
+        return [{"name": "API Error", "percentage": 0}]
     if not isinstance(response_gainers, list):
-        st.error(f"FMP API returned an unexpected response for gainers: {response_gainers}")
-        return [{"name": "API Key Invalid/Expired", "percentage": 0}]
-
-    count = 0
+        return [{"name": "Invalid API Key", "percentage": 0}]
     gainers = []
-    for response in response_gainers:
+    for response in response_gainers[:number]:
         if isinstance(response, dict) and "name" in response and "changesPercentage" in response:
-            if count < number:
-                gainers.append({
-                    "name": response["name"],
-                    "percentage": response["changesPercentage"]
-                })
-                count += 1
+            gainers.append({
+                "name": response["name"],
+                "percentage": response["changesPercentage"]
+            })
     return gainers
-    
+
 def get_losers(number):
     url = f"https://financialmodelingprep.com/stable/biggest-losers?apikey={FMP_API_KEY}"
-    
     try:
         response_losers = requests.get(url, timeout=10).json()
     except Exception as e:
-        st.error(f"Error fetching losers from FMP: {e}")
-        return [{"name": "API Fetch Failed", "percentage": 0}]
-        
+        st.error(f"Error fetching losers: {e}")
+        return [{"name": "API Error", "percentage": 0}]
     if not isinstance(response_losers, list):
-        st.error(f"FMP API returned an unexpected response for losers: {response_losers}")
-        return [{"name": "API Key Invalid/Expired", "percentage": 0}]
-
-    count = 0
+        return [{"name": "Invalid API Key", "percentage": 0}]
     losers = []
-    for response in response_losers:
+    for response in response_losers[:number]:
         if isinstance(response, dict) and "name" in response and "changesPercentage" in response:
-            if count < number:
-                losers.append({
-                    "name": response["name"],
-                    "percentage": response["changesPercentage"]
-                })
-                count += 1
+            losers.append({
+                "name": response["name"],
+                "percentage": response["changesPercentage"]
+            })
     return losers
 
-
 with st.sidebar:
-    st.title("Top 5 Gainers:")
-    for gainer in get_gainers(5):
-        color = "green" if gainer["percentage"] > 0 else "blue"
-        st.badge(f"{gainer['name']} ({gainer['percentage']}%)", color=color)
-    
-    st.title("Top 5 Losers:")
-    for loser in get_losers(5):
-        color = "red" if loser["percentage"] < 0 else "blue"
-        st.badge(f"{loser['name']} ({loser['percentage']}%)", color=color)
+    st.title("Top 5 Gainers")
+    for g in get_gainers(5):
+        color = "green" if g["percentage"] > 0 else "blue"
+        st.badge(f"{g['name']} ({g['percentage']}%)", color=color)
+    st.title("Top 5 Losers")
+    for l in get_losers(5):
+        color = "red" if l["percentage"] < 0 else "blue"
+        st.badge(f"{l['name']} ({l['percentage']}%)", color=color)
 
 def _fetch_articles_apitube(entity: str) -> list:
     try:
         articles = []
-      
         APITUBE_API_KEY = "api_live_auBHrOWRNh2UGkBZaczSeeOM5GNDnHd3ZqJNFbTT3gHUvg"
         url = (
             "https://api.apitube.io/v1/news/everything?title=" + entity +
@@ -104,17 +88,13 @@ def _fetch_articles_apitube(entity: str) -> list:
                              .get("score", 0.0)
                     )
                 })
-      
         if articles:
             with open("articles.txt", "w") as f:
                 for a in articles:
                     f.write(str(a) + "\n")
         return articles
     except Exception as e:
-        
         return {"error": f"Failed to fetch: {e}"}
-
-pass
 
 def visualize_sentiments():
     sentiments = []
@@ -123,17 +103,12 @@ def visualize_sentiments():
             for line in file:
                 try:
                     article = eval(line.strip())
-                
-                    sentiments.append(float(article.get("sentiment", 0))) 
+                    sentiments.append(float(article.get("sentiment", 0)))
                 except Exception:
                     continue
-
     if not sentiments:
-
-        st.warning("Using hardcoded demo data for visualization due to fetch failure.")
-        sentiments = [0.6, -0.3, 0.0, 0.2, -0.5, 0.9, -0.8] 
-
-
+        st.warning("⚠️ Using fallback demo data.")
+        sentiments = [0.6, -0.3, 0.0, 0.2, -0.5]
     labels = []
     for s in sentiments:
         if s > 0.05:
@@ -142,148 +117,92 @@ def visualize_sentiments():
             labels.append("Negative")
         else:
             labels.append("Neutral")
-
     sentiment_df = pd.DataFrame({"Sentiment": labels})
     sentiment_counts = sentiment_df["Sentiment"].value_counts()
-
     st.subheader("📊 Sentiment Overview")
     col1, col2, col3 = st.columns(3)
     col1.metric("🟢 Positive", sentiment_counts.get("Positive", 0))
     col2.metric("🔴 Negative", sentiment_counts.get("Negative", 0))
     col3.metric("⚪ Neutral", sentiment_counts.get("Neutral", 0))
-
-
     fig, ax = plt.subplots()
     ax.pie(
         sentiment_counts.values,
         labels=sentiment_counts.index,
         autopct="%1.1f%%",
         startangle=90,
-
-        colors=[
-            "green" if label == "Positive" else "red" if label == "Negative" else "gray"
-            for label in sentiment_counts.index
-        ]
+        colors=["green", "red", "gray"]
     )
     ax.axis("equal")
     st.pyplot(fig)
-
-
     st.bar_chart(sentiment_df["Sentiment"].value_counts())
-
-    avg_sentiment = sum(sentiments) / len(sentiments) if sentiments else 0
+    avg_sentiment = sum(sentiments) / len(sentiments)
     st.subheader("📌 Investment Recommendation")
     if avg_sentiment > 0.05:
-        st.success("🟢 Positive Sentiment — Recommendation: BUY")
+        st.success("🟢 Positive sentiment — Recommendation: BUY")
     elif avg_sentiment < -0.05:
-        st.error("🔴 Negative Sentiment — Recommendation: SELL")
+        st.error("🔴 Negative sentiment — Recommendation: SELL")
     else:
-        st.warning("⚪ Neutral Sentiment — Recommendation: HOLD")
-
+        st.warning("⚪ Neutral sentiment — Recommendation: HOLD")
 
 inputStock = st.text_input("Enter stock name or company name:")
 
 if st.button("Submit", type="primary"):
-
     try:
-        # --- Updated model to use openai/gpt-oss-120b as requested ---
         llm = LLM(
-            model="openai/gpt-oss-120b", 
+            model="openai/gpt-oss-120b",
             temperature=0.2,
             top_p=0.9
         )
     except Exception as e:
-        
-        st.error(f"LLM initialization failed. Ensure GROQ_API_KEY is set and the model is valid. Error: {e}")
-        llm = None 
-
+        st.error(f"LLM initialization failed. Check GROQ_API_KEY. Error: {e}")
+        llm = None
     if llm:
-
         collector = Agent(
-            role = "Data Processor & Article Counter",
-            
-            goal = "Read the articles provided in the 'article_content' input, count them, and prepare a list of article sentiments and bodies for the next agent.",
-            backstory = "The {topic} is an organisation or stock name. Your job is to process the collected news articles provided in the task input. **Do NOT use any tools.**",
-            tools = [], 
-            llm = llm,
-            allow_delegation = False,
-            verbose = False
+            role="Data Processor & Article Counter",
+            goal="Read the articles provided in 'article_content' input and prepare for sentiment analysis.",
+            tools=[],
+            llm=llm,
+            allow_delegation=False,
+            verbose=False
         )
-
         summerizer = Agent(
-            role = "Article summerizer",
-            goal = "Summerize the articles received from the collector agent to fetch the crux of it",
-            backstory = "You are summerizing all the articles into one with utmost precision and keeping in mind the trends we are getting from the articles.",
-            llm = llm,
-            allow_delegation = False,
-            verbose = False
+            role="Article summerizer",
+            goal="Summarize the collected articles and extract key trends.",
+            llm=llm,
+            allow_delegation=False,
+            verbose=False
         )
-        
         analyser = Agent(
-            role = "Financial Analyst",
-            goal = "You will guide user to either Buy/Sell or Hold the stock of the organisation.",
-            backstory = (
-                "You will observe the sentiment all the article."
-                "You are working on identifying latest trends about the topic: {topic}."
-                "You will take the input from the collector and summerizer agents\n"
-                "After that you will predict the overall sentiment as positive, negative or neutral."
-                "Based on the sentiment predicted by you, you will tell us whether we should buy/sell or hold the stock for now."
-                "your target is to maximise user profit."
-            ),
-            llm = llm,
-            allow_delegation = False,
-            verbose = False
+            role="Financial Analyst",
+            goal="Analyze sentiment and provide BUY/SELL/HOLD recommendation.",
+            llm=llm,
+            allow_delegation=False,
+            verbose=False
         )
-        
         collect = Task(
-            description = (
-                "1. The {topic} will be an organisation of stock name.\n"
-            
-                "2. Read the full content of the articles provided in the 'article_content' input:\n\n"
-                "{article_content}\n\n"
-                "3. Count the total number of articles you processed.\n"
-                "4. Prioritize the latest trends and news on the {topic} from the content provided.\n"
-            ),
-            
-            input_variables=["topic", "article_content"], 
-            expected_output = "The total count of articles and a structured, comprehensive list of the article bodies and their associated sentiment scores (e.g., [{'body': '...', 'sentiment': 0.8}, ...])",
-            agent = collector
+            description="Process the collected articles.",
+            input_variables=["topic", "article_content"],
+            expected_output="List of article bodies and sentiments",
+            agent=collector
         )
-        
         summerize = Task(
-            description = (
-                "1. Summerize the articles you collected from collector into maximum 500 words.\n"
-                "2. Prioritize the latest trends and news on the {topic}.\n" 
-            ),
-            expected_output = "A concise summary of the articles related to the organisation or stock given by the user, highlighting key sentiment drivers.",
-            agent = summerizer
+            description="Summarize the collected articles and key sentiment points.",
+            expected_output="A concise summary of the market view.",
+            agent=summerizer
         )
-        
         analyse = Task(
-            description = (
-                "1. Use the content collected to create an opinion on {topic}.\n"
-                "2. Use the collected articles to identify trends in the market\n"
-                "3. Based on the trends observed try to identify overall sentiment of the market as positive/negative or neutral.\n"
-                "4. Once the sentiment is identified guide the user to either Buy/sell or hold the stock of the company or organisation provided.\n"
-                "5. Ensure the proper analysis and provide detailed analysis.\n"
-                "6. Tell the total number of articles you used for analysis.\n"
-            ),
-            expected_output = "Provide overall Sentiment about the topic as positive/negative or neutral and based on it guide us if we should buy/ sell or hold the stock. Ensure the total article count is included.",
-            agent = analyser
+            description="Analyze the sentiment and recommend BUY, SELL, or HOLD.",
+            expected_output="Final investment recommendation.",
+            agent=analyser
         )
-
         crew = Crew(
             agents=[collector, summerizer, analyser],
             tasks=[collect, summerize, analyse],
             process=Process.sequential,
             verbose=False
         )
-
         try:
-            
             articles = _fetch_articles_apitube(inputStock)
-
-            
             if isinstance(articles, dict) and "error" in articles:
                 st.warning(f"No real articles fetched. Using demo data. ({articles['error']})")
                 demo_articles = [
@@ -295,29 +214,19 @@ if st.button("Submit", type="primary"):
                 with open("articles.txt", "w") as f:
                     for a in demo_articles:
                         f.write(str(a) + "\n")
-            
-            
             visualize_sentiments()
-
-            
             article_content = ""
             if os.path.exists("articles.txt"):
                 with open("articles.txt", "r") as f:
                     article_content = f.read()
-            else:
-                st.error("articles.txt file is missing after fetch/fallback.")
-
-
-            
             response = crew.kickoff(
                 inputs={
                     "topic": inputStock,
-                    "article_content": article_content 
+                    "article_content": article_content
                 }
             )
             st.success("✅ Analysis complete!")
             st.write("Analyzing trends for:", inputStock)
             st.markdown(f"**Result:**\n{response}")
-
         except Exception as e:
             st.error(f"❌ Error during CrewAI processing: {e}")
