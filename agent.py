@@ -135,7 +135,7 @@ if st.button("Submit", type="primary"):
     
     collector = Agent(
         role = "Articles collector",
-        goal = "Asks the user about the {topic} and collects the articles releated to that topic using tools.",
+        goal = "Asks the user about the {topic} and collects the articles releated to that topic.",
         backstory = "The {topic} will be an organisation of stock name. Don't take any other input except topic"
                     "fetch the articles.\n"
                     "Give the total number of articles collected.",
@@ -170,7 +170,7 @@ if st.button("Submit", type="primary"):
     collect = Task(
         description = (
             "1. The {topic} will be an organisation of stock name.\n"
-            "2. Use the tool to collect all the news articles on the provided {topic}.\n"
+            "2. collect all the news articles on the provided {topic}.\n"
             "3. Prioritize the latest trends and news on the {topic}.\n"
         ),
         expected_output = "Articles related to the organisation or stock given by the user\n",
