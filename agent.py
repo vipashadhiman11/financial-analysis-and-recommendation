@@ -8,10 +8,16 @@ from dotenv import load_dotenv
 from crewai import Agent, Task, Crew, LLM, Process
 from crewai.tools import tool
 
+# -------------------------------------------------------------------
+# 🔐 Load environment variables
+# -------------------------------------------------------------------
 load_dotenv()
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 NEWS_API_KEY = "4850da14d83f4ddd92e0bf64caad7d96"
 
+# -------------------------------------------------------------------
+# 🖥️ Streamlit UI Setup
+# -------------------------------------------------------------------
 st.set_page_config(page_title="Market Trends Analyst", layout="centered")
 st.title("📈 Your Financial Advisor")
 st.write(
@@ -63,7 +69,7 @@ def get_articles_APItube(entity: str) -> list:
                 for item in news_response["articles"]:
                     articles.append({
                         "article_body": item["title"] + " " + (item.get("description") or ""),
-                        "sentiment": 0.0,  # Neutral for now
+                        "sentiment": 0.0,  # Neutral initially
                         "published_at": item.get("publishedAt", "")
                     })
         except Exception as e:
@@ -224,9 +230,24 @@ if st.button("Submit", type="primary"):
     llm = LLM(model="groq/llama-3.1-8b-instant", temperature=0.2, top_p=0.9)
     collector, summerizer, analyser = create_agents(llm)
 
-    collect = Task(description="Collect news articles", agent=collector)
-    summerize = Task(description="Summarize the articles", agent=summerizer)
-    analyse = Task(description="Analyze sentiment and recommend", agent=analyser)
+    # ✅ FIXED — added expected_output
+    collect = Task(
+        description="Collect all the latest articles related to the stock/company.",
+        expected_output="A list of relevant articles with basic sentiment scores.",
+        agent=collector
+    )
+
+    summerize = Task(
+        description="Summarize the collected articles and extract key trends.",
+        expected_output="A clean summary of market sentiment and trending topics.",
+        agent=summerizer
+    )
+
+    analyse = Task(
+        description="Analyze the overall sentiment and recommend BUY/SELL/HOLD.",
+        expected_output="A final recommendation based on the aggregated sentiment of the articles.",
+        agent=analyser
+    )
 
     crew = Crew(
         agents=[collector, summerizer, analyser],
@@ -238,6 +259,7 @@ if st.button("Submit", type="primary"):
     try:
         articles = get_articles_APItube(inputStock)
 
+        # 🪄 Dynamic fallback if no articles
         if not articles or len(articles) == 0:
             st.warning(f"No real articles found for {inputStock}. Using sample data for demo.")
             company = inputStock
