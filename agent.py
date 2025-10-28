@@ -187,7 +187,7 @@ if st.button("Submit", type="primary"):
     # NOTE: If you must use a LiteLLM model string, verify the exact format, but Llama3 is standard.
     try:
         llm = LLM(
-            model="llama3-8b-8192", 
+            model="groq/openai/gpt-oss-120b", 
             temperature=0.2,
             top_p=0.9
         )
