@@ -24,14 +24,14 @@ st.write(
     "I will also recommend you if you should Buy / Sell / Hold the stock 😎"
 )
 
-# Helper functions for sidebar (get_gainers, get_losers) remain unchanged
 def get_gainers(number):
     response_gainers = requests.get("https://financialmodelingprep.com/stable/biggest-gainers?apikey=ES9nZy86YlYSEW9NkohutKivy2xDUfEq").json()
     count = 0
     gainers = []
     for response in response_gainers:
         if count<number:
-            gainers.append(response["name"])
+            gainers.append({"name":response["name"],
+                            "percentage":response["changesPercentage"]})
             count+=1
     return gainers
     
@@ -41,18 +41,23 @@ def get_losers(number):
     losers = []
     for response in response_losers:
         if count<number:
-            losers.append(response["name"])
+            losers.append({"name":response["name"],
+                            "percentage":response["changesPercentage"]})
             count+=1
     return losers
 
-
+get_gainers(5)
 with st.sidebar:
     st.title("Top 5 gainers:")
     for gainer in get_gainers(5):
-        st.badge(gainer, color="green")
+        st.markdown(
+    ":green-badge["+gainer['name']+"] :blue-badge[+"+str(gainer['percentage'])+"%]"
+        )
     st.title("Top 5 losers:")
     for losers in get_losers(5):
-        st.badge(losers, color="red")
+        st.markdown(
+    ":red-badge["+losers['name']+"] :blue-badge["+str(losers['percentage'])+"%]"
+        )
 
 # ---------------------------------------------------------
 # 📰 Plain helper to fetch articles (call this directly)
