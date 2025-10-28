@@ -9,11 +9,12 @@ import streamlit as st
 import matplotlib.pyplot as plt
 
 # CrewAI & LLM
-from crewai import Agent, Task, Crew, LLM, Process
+from crewai import Agent, Task, Crew, Process
 from crewai.tools import tool
 from dotenv import load_dotenv
 
 # CRITICAL FIX: Import the ChatGroq model explicitly
+# Note: You MUST have 'langchain-groq' installed in your environment.
 from langchain_groq import ChatGroq
 
 # --- Configuration & Setup ---
@@ -42,20 +43,17 @@ if st.button("Submit", type="primary"):
         st.error("Please enter a stock or company name to analyze.")
         st.stop()
         
-    # --- LLM Initialization (FIXED) ---
+    # --- LLM Initialization (CRITICAL FIX) ---
     st.info(f"Connecting to Groq using model: **{GROQ_MODEL}**")
     
     try:
         # 1. Instantiate the Groq client directly using the explicit class.
-        groq_llm = ChatGroq(
+        # This object is a direct LangChain runnable.
+        groq_llm_instance = ChatGroq(
             temperature=0.2, 
             model_name=GROQ_MODEL,
             groq_api_key=GROQ_API_KEY # Explicitly pass key for robustness
         )
-        
-        # 2. Assign the instantiated object directly as the LLM for CrewAI agents.
-        # This bypasses the problematic auto-detection logic.
-        llm = groq_llm
     except Exception as e:
         st.error(f"❌ **LLM Initialization Error:** Failed to create ChatGroq instance. Ensure `langchain-groq` is installed and the model name is correct. Error: {e}")
         st.stop()
@@ -113,7 +111,6 @@ if st.button("Submit", type="primary"):
                     "Neutral": neu
                 })
                 
-                # This string is the output the LLM sees
                 final_output = (
                     f"Total articles collected: {len(articles)}\n"
                     f"Summary of articles (max 15):\n"
@@ -129,26 +126,30 @@ if st.button("Submit", type="primary"):
         except Exception as e:
             return f"Failed to fetch articles due to an unexpected exception: {e}"
 
-    # --- Agents Definition ---
+    # --- Agents Definition (LLM assigned later to bypass validation) ---
 
     collector = Agent(
         role="Articles collector",
         goal="Collect news articles and extract sentiment data for {topic} using the available tool.",
         backstory="Your task is to use the 'get_articles_APItube' tool to fetch news. You MUST ensure the final output contains the sentiment counts in the exact 'SENTIMENT_COUNTS_JSON' format for the next agent.",
         tools=[get_articles_APItube],
-        llm=llm,
+        llm=None, # Pass None initially
         allow_delegation=False,
         verbose=False
     )
+    # Manual LLM assignment
+    collector.llm = groq_llm_instance
     
     summerizer = Agent(
         role="Article summerizer",
         goal="Summarize the key findings from the collected articles and ensure sentiment counts are preserved.",
         backstory="You are summarizing all article findings into one report, focusing on market trends. You MUST copy the 'SENTIMENT_COUNTS_JSON' from the input to the end of your output.",
-        llm=llm,
+        llm=None, # Pass None initially
         allow_delegation=False,
         verbose=False
     )
+    # Manual LLM assignment
+    summerizer.llm = groq_llm_instance
     
     analyser = Agent(
         role="Financial Analyst",
@@ -158,10 +159,12 @@ if st.button("Submit", type="primary"):
             "to determine the overall market sentiment and provide a clear, justified **Buy, Sell, or Hold** recommendation. "
             "Your final output MUST also contain the `SENTIMENT_COUNTS_JSON` at the end."
         ),
-        llm=llm,
+        llm=None, # Pass None initially
         allow_delegation=False,
         verbose=False
     )
+    # Manual LLM assignment
+    analyser.llm = groq_llm_instance
     
     # --- Tasks Definition ---
     
@@ -213,35 +216,29 @@ if st.button("Submit", type="primary"):
         st.subheader(f"📈 Financial Analysis for **{inputStock}**")
         st.divider()
         
-        # --- Streamlit Output & Pie Chart Generation (CLEANED UP) ---
+        # --- Streamlit Output & Pie Chart Generation ---
         json_start_tag = "SENTIMENT_COUNTS_JSON:"
         
         if json_start_tag in full_result:
-            # 1. Extract the Analysis Text and JSON string
-            parts = full_result.split(json_start_tag, 1) # Split only once
+            parts = full_result.split(json_start_tag, 1)
             analysis_text = parts[0].strip()
             json_str = parts[-1].strip()
             
-            # Clean up the JSON string (LLMs can sometimes add extra formatting like triple backticks)
             json_str = json_str.replace('```json', '').replace('```', '').strip()
             
             try:
                 sentiment_counts = json.loads(json_str)
                 
-                # 2. Display the Analysis Text first
                 st.subheader("📝 Analyst Report")
                 st.markdown(analysis_text)
                 st.divider()
                 
-                # 3. Display the Pie Chart
                 st.subheader("📊 Sentiment Distribution of News Articles")
                 
                 labels = list(sentiment_counts.keys())
                 sizes = list(sentiment_counts.values())
                 
-                # Check if there is data to plot
                 if sum(sizes) > 0:
-                    # Consistent colors for Positive, Negative, Neutral
                     color_map = {"Positive": '#4CAF50', "Negative": '#F44336', "Neutral": '#FFEB3B'}
                     colors = [color_map.get(label, '#CCCCCC') for label in labels]
                     
