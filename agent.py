@@ -15,7 +15,7 @@ st.title("Your Financial Advisor")
 st.write('Hello, I am your financial advisor. I will give you a complete analysis of your stock or organisation. I will also recomment you if you should Buy/ Sell or Hold the stock :sunglasses:')
 
 def get_gainers(number):
-    response_gainers = requests.get("https://financialmodelingprep.com/stable/biggest-gainers?apikey=l0YbTN9l3jYhJnfsNiiuU9khcDLa9tia").json()
+    response_gainers = requests.get("https://financialmodelingprep.com/stable/biggest-gainers?apikey=iifNjIBLSqHJ0q8wO57yE87LhNZ762yf").json()
     print(response_gainers)
     count = 0
     gainers = []
@@ -27,7 +27,7 @@ def get_gainers(number):
     return gainers
     
 def get_losers(number):
-    response_losers = requests.get("https://financialmodelingprep.com/stable/biggest-losers?apikey=l0YbTN9l3jYhJnfsNiiuU9khcDLa9tia").json()
+    response_losers = requests.get("https://financialmodelingprep.com/stable/biggest-losers?apikey=iifNjIBLSqHJ0q8wO57yE87LhNZ762yf").json()
     count = 0
     losers = []
     for response in response_losers:
