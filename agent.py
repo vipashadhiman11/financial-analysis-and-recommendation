@@ -91,32 +91,36 @@ if st.button("Submit", type="primary"):
         llm=llm
     )
 
-    # ------------------------------------------------
+        # ------------------------------------------------
     # 📝 Tasks
     # ------------------------------------------------
     collect = Task(
-    description="Collect news articles",
-    expected_output="A list of news articles with sentiment scores",
-    agent=collector
-)
+        description="Collect news articles",
+        expected_output="A list of news articles with sentiment scores",
+        agent=collector
+    )
 
-summerize = Task(
-    description="Summarize articles",
-    expected_output="A summarized version of the collected articles",
-    agent=summerizer
-)
+    summerize = Task(
+        description="Summarize articles",
+        expected_output="A summarized version of the collected articles",
+        agent=summerizer
+    )
 
-analyse = Task(
-    description="Recommend Buy/Sell/Hold",
-    expected_output="A recommendation based on overall sentiment",
-    agent=analyser
-)
+    analyse = Task(
+        description="Recommend Buy/Sell/Hold",
+        expected_output="A recommendation based on overall sentiment",
+        agent=analyser
+    )
 
+    # ------------------------------------------------
+    # 🤝 Crew Setup
+    # ------------------------------------------------
     crew = Crew(
         agents=[collector, summerizer, analyser],
         tasks=[collect, summerize, analyse],
         process=Process.sequential
     )
+
 
     # ------------------------------------------------
     # 🧭 Manual Article Fetch (Stable)
