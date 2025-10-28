@@ -4,9 +4,11 @@ from datetime import date,timedelta
 from dotenv import load_dotenv
 import os
 import streamlit as st
+import requests
 
 load_dotenv()
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+# GROQ_API_KEY="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"
 
 st.set_page_config(page_title = "Market Trends Analyst", layout = "centered")
 st.title("Your Financial Advisor")
@@ -48,8 +50,9 @@ with st.sidebar:
     ":red-badge["+losers['name']+"] :blue-badge["+str(losers['percentage'])+"%]"
         )
 
-inputStock = st.text_input("Enter stock name or company name:")
-# if user_name:
+inputStock = st.text_input("Enter your Organisation:")
+
+
 
 if st.button("Submit", type="primary"):
     llm = LLM(model = "groq/openai/gpt-oss-120b",
@@ -57,7 +60,8 @@ if st.button("Submit", type="primary"):
             # max_completion_tokens = 256,
             top_p = 0.9
         )
-    
+
+     
     @tool("get_articles_APItube")
     def get_articles_APItube(entity: str) -> list[list]:
       """
@@ -135,7 +139,6 @@ if st.button("Submit", type="primary"):
         backstory = "The {topic} will be an organisation of stock name. Don't take any other input except topic"
                     "Use the tool 'get_articles_APItube' to fetch the articles.\n"
                     "Give the total number of articles collected.",
-        tools = [get_articles_APItube],
         llm = llm,
         allow_delegation = False,
         verbose = False
@@ -205,9 +208,8 @@ if st.button("Submit", type="primary"):
     
     try:
         response = crew.kickoff(inputs = {"topic": inputStock})
-        st.write("Analysing trends for: ", inputStock)
+        st.write("You entered: ", inputStock)
         st.write("Result:", response.raw)
-    
         
     except Exception as e:
         st.write(f"An error occured: {e}")
