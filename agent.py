@@ -181,7 +181,7 @@ if st.button("Submit", type="primary"):
         role = "Articles collector",
         goal = "Asks the user about the {topic} and collects the articles releated to that topic using tools.",
         backstory = "The {topic} will be an organisation of stock name. Don't take any other input except topic"
-                    "Use the tool 'get_articles_APItube' to fetch the articles.\n"
+                    "Use the tool '_fetch_articles_apitube' to fetch the articles.\n"
                     "Give the total number of articles collected.",
         tools = [_fetch_articles_apitube],
         llm = llm,
@@ -190,40 +190,58 @@ if st.button("Submit", type="primary"):
     )
 
     summerizer = Agent(
-        role="Article summerizer",
-        goal="Summarize the collected articles and identify key insights.",
-        backstory="Summarize clearly and concisely; do not ask the user any follow-up questions.",
-        llm=llm,
-        allow_delegation=False,
-        verbose=False
+        role = "Article summerizer",
+        goal = "Summerize the articles collected by collector and summerize them to fetch the crux of it",
+        backstory = "You are summerizing all the articles into one with utmost precision and keeping in mind the trends we are getting from the articles.",
+        llm = llm,
+        allow_delegation = False,
+        verbose = False
     )
-
+    
     analyser = Agent(
-        role="Financial Analyst",
-        goal="Analyze sentiment and recommend BUY / SELL / HOLD without asking the user for clarification.",
-        backstory="You are a confident analyst; even with limited data, provide a clear, reasoned recommendation.",
-        llm=llm,
-        allow_delegation=False,
-        verbose=False
+        role = "Financial Analyst",
+        goal = "You will guide user to either Buy/Sell or Hold the stock of the organisation.",
+        backstory = "You will observe the sentiment all he article."
+                    "You are working on identifying latest trends about the topic: {topic}."
+                    "You will take the input from the collector agent\n"
+                    "After that you will predict the overall sentiment as positive, negative or neutral."
+                    "Based on the sentiment predicted by you, you will tell us whether we should buy/sell or hold the stock for now."
+                    "your target is to maximise user profit.",
+        llm = llm,
+        allow_delegation = False,
+        verbose = False
     )
-
-    # Tasks
+    
     collect = Task(
-        description="Collect all the latest articles related to the stock/company using the provided tool.",
-        expected_output="A concise list of articles with basic sentiment.",
-        agent=collector
+        description = (
+            "1. The {topic} will be an organisation of stock name.\n"
+            "2. Use the tool to collect all the news articles on the provided {topic} using tool 'get_articles_APItube'.\n"
+            "3. Prioritize the latest trends and news on the {topic}.\n"
+        ),
+        expected_output = "Articles related to the organisation or stock given by the user\n",
+        agent = collector
     )
-
+    
     summerize = Task(
-        description="Summarize the collected articles and extract key trends.",
-        expected_output="A short summary of market sentiment and top themes.",
-        agent=summerizer
+        description = (
+            "1. Summerize the articles you collected from collector into maximum 500 words.\n"
+            "3. Prioritize the latest trends and news on the {topic}.\n"
+        ),
+        expected_output = "Summerize the articles related to the organisation or stock given by the user\n",
+        agent = summerizer
     )
-
+    
     analyse = Task(
-        description="Analyze overall sentiment from the articles and recommend BUY / SELL / HOLD.",
-        expected_output="A clear recommendation (BUY/SELL/HOLD) with 2–3 bullet points of rationale.",
-        agent=analyser
+        description = (
+            "1. Use the content collected to create an opinion on {topic}.\n"
+            "2. Use the collected articles to identify trends in the market\n"
+            "3. Based on the trends observed try to identify overall sentiment of the market as positive/negative or neutral.\n"
+            "4. Once the sentiment is identified guide the user to either Buy/sell or hold the stock of the company or organisation provided.\n"
+            "5. Ensure the proper analysis and provide detailed analysis.\n"
+            "6. Tell the total number of articles you used for analysis.\n"
+        ),
+        expected_output = "Provide overall Sentiment about the topic as positive/negative or neutral and based on it guide us if we should buy/ sell or hold the stock.",
+        agent = analyser
     )
 
     crew = Crew(
