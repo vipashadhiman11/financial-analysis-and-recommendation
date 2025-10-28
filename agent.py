@@ -24,7 +24,7 @@ st.write(
     "I will also recommend you if you should Buy / Sell / Hold the stock 😎"
 )
 
-def get_gainers(number):
+def get_gainers(number: int) -> list[dict]:
     response_gainers = requests.get("https://financialmodelingprep.com/stable/biggest-gainers?apikey=ES9nZy86YlYSEW9NkohutKivy2xDUfEq").json()
     count = 0
     gainers = []
@@ -35,7 +35,7 @@ def get_gainers(number):
             count+=1
     return gainers
     
-def get_losers(number):
+def get_losers(number: int) -> list[dict]:
     response_losers = requests.get("https://financialmodelingprep.com/stable/biggest-losers?apikey=ES9nZy86YlYSEW9NkohutKivy2xDUfEq").json()
     count = 0
     losers = []
