@@ -13,12 +13,15 @@ from crewai import Agent, Task, Crew, LLM, Process
 from crewai.tools import tool
 from dotenv import load_dotenv
 
+# CRITICAL FIX: Import the ChatGroq model explicitly
+from langchain_groq import ChatGroq
+
 # --- Configuration & Setup ---
 
 load_dotenv()
-# NOTE: GROQ_API_KEY is read automatically by the LLM adapter when setting the model.
-# os.environ.get("GROQ_API_KEY") is checked implicitly.
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+# NOTE: Using a placeholder for APITUBE_API_KEY for the tool to work
+APITUBE_API_KEY = os.environ.get("APITUBE_API_KEY", "api_live_auBHrOWRNh2UGkBZaczSeeOM5GNDnHd3ZqJNFbTT3gHUvg")
 
 # --- Streamlit UI Setup ---
 st.set_page_config(page_title="Market Trends Analyst", layout="centered")
@@ -27,14 +30,8 @@ st.write('Hello, I am your financial advisor. I will give you a complete analysi
 
 inputStock = st.text_input("Enter stock name or company name (e.g., Apple, TSLA):")
 
-# Define the Groq model we will use (use a valid, fast Groq model)
+# Define the Groq model we will use
 GROQ_MODEL = "mixtral-8x7b-32768" 
-# ...
-llm = LLM(
-    model=GROQ_MODEL,
-    temperature=0.2,
-    top_p=0.9
-)
 
 if st.button("Submit", type="primary"):
     if not GROQ_API_KEY:
@@ -46,12 +43,22 @@ if st.button("Submit", type="primary"):
         st.stop()
         
     # --- LLM Initialization (FIXED) ---
-    # Use the Litellm format for Groq
-    llm = LLM(
-        model=GROQ_MODEL, 
-        temperature=0.2, 
-        top_p=0.9
-    )
+    st.info(f"Connecting to Groq using model: **{GROQ_MODEL}**")
+    
+    try:
+        # 1. Instantiate the Groq client directly using the explicit class.
+        groq_llm = ChatGroq(
+            temperature=0.2, 
+            model_name=GROQ_MODEL,
+            groq_api_key=GROQ_API_KEY # Explicitly pass key for robustness
+        )
+        
+        # 2. Assign the instantiated object directly as the LLM for CrewAI agents.
+        # This bypasses the problematic auto-detection logic.
+        llm = groq_llm
+    except Exception as e:
+        st.error(f"❌ **LLM Initialization Error:** Failed to create ChatGroq instance. Ensure `langchain-groq` is installed and the model name is correct. Error: {e}")
+        st.stop()
     
     # --- Tools Definition ---
     @tool("get_articles_APItube")
@@ -63,9 +70,6 @@ if st.button("Submit", type="primary"):
         args:
             entity: name of any organisation or stock 
         """
-        # NOTE: Using placeholder API key and dates. 
-        # For production, consider using os.environ for APITUBE_API_KEY as well.
-        APITUBE_API_KEY = os.environ.get("APITUBE_API_KEY", "api_live_auBHrOWRNh2UGkBZaczSeeOM5GNDnHd3ZqJNFbTT3gHUvg")
         
         # Calculate start and end dates dynamically (e.g., last 5 days)
         end_date = date.today()
@@ -96,7 +100,6 @@ if st.button("Submit", type="primary"):
                     else:
                         label, neu = "Neutral", neu + 1
                             
-                    # Ensure title and body are available
                     title = result.get('title', 'No Title')
                     body_snippet = result.get('body', 'No Body')[:200]
                     
@@ -132,7 +135,7 @@ if st.button("Submit", type="primary"):
         role="Articles collector",
         goal="Collect news articles and extract sentiment data for {topic} using the available tool.",
         backstory="Your task is to use the 'get_articles_APItube' tool to fetch news. You MUST ensure the final output contains the sentiment counts in the exact 'SENTIMENT_COUNTS_JSON' format for the next agent.",
-        tools=[get_articles_APITube],
+        tools=[get_articles_APItube],
         llm=llm,
         allow_delegation=False,
         verbose=False
@@ -200,7 +203,7 @@ if st.button("Submit", type="primary"):
         agents=[collector, summerizer, analyser],
         tasks=[collect, summerize, analyse],
         process=Process.sequential,
-        verbose=True # Keep True for Streamlit visibility
+        verbose=True
     )
     
     try:
@@ -240,12 +243,12 @@ if st.button("Submit", type="primary"):
                 if sum(sizes) > 0:
                     # Consistent colors for Positive, Negative, Neutral
                     color_map = {"Positive": '#4CAF50', "Negative": '#F44336', "Neutral": '#FFEB3B'}
-                    colors = [color_map.get(label, '#CCCCCC') for label in labels] # Use a default grey for safety
+                    colors = [color_map.get(label, '#CCCCCC') for label in labels]
                     
                     fig, ax = plt.subplots(figsize=(6, 6))
                     ax.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=90, colors=colors, 
                            wedgeprops={'edgecolor': 'black'})
-                    ax.axis('equal') # Equal aspect ratio ensures that pie is drawn as a circle.
+                    ax.axis('equal')
                     
                     st.pyplot(fig)
                 else:
