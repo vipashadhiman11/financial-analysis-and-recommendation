@@ -3,6 +3,7 @@ from crewai.tools import tool
 from datetime import date, timedelta
 from dotenv import load_dotenv
 import os
+import time
 import streamlit as st
 import requests
 import matplotlib.pyplot as plt
@@ -21,10 +22,12 @@ st.write(
 inputStock = st.text_input("Enter stock name or company name:")
 
 if st.button("Submit", type="primary"):
+    # ✅ Lightweight model with token limit to prevent rate-limit errors
     llm = LLM(
-        model="groq/openai/gpt-oss-120b",
+        model="groq/gemma-7b-it",
         temperature=0.2,
-        top_p=0.9
+        top_p=0.9,
+        max_tokens=512
     )
 
     @tool("get_articles_APItube")
@@ -173,8 +176,9 @@ if st.button("Submit", type="primary"):
     )
 
     try:
-        # Run Crew
+        # 🚀 Run Crew
         response = crew.kickoff(inputs={"topic": inputStock})
+        time.sleep(2)  # 🧊 Slow down slightly to avoid burst rate-limits
         st.write("Analysing trends for: ", inputStock)
         st.write("Result:", response.raw)
 
