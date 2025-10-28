@@ -4,7 +4,6 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import streamlit as st
 from dotenv import load_dotenv
-
 from crewai import Agent, Task, Crew, LLM, Process
 from crewai.tools import tool as crew_tool
 
@@ -18,36 +17,76 @@ st.write(
     "Hello, I am your financial advisor. I will give you a complete analysis of your stock or organisation. "
     "I will also recommend you if you should Buy / Sell / Hold the stock 😎"
 )
+
+FMP_API_KEY = "ES9nZy86YlYSNkohutKivy2xDUfEq"
+
 def get_gainers(number):
-    response_gainers = requests.get("https://financialmodelingprep.com/stable/biggest-gainers?apikey=ES9nZy86YlYSNkohutKivy2xDUfEq").json()
-    print(response_gainers)
+    url = f"https://financialmodelingprep.com/stable/biggest-gainers?apikey={FMP_API_KEY}"
+    
+    try:
+        response_gainers = requests.get(url, timeout=10).json()
+    except Exception as e:
+        st.error(f"Error fetching gainers from FMP: {e}")
+        return [{"name": "API Fetch Failed", "percentage": 0}]
+
+    if not isinstance(response_gainers, list):
+        st.error(f"FMP API returned an unexpected response for gainers: {response_gainers}")
+        return [{"name": "API Key Invalid/Expired", "percentage": 0}]
+
     count = 0
     gainers = []
     for response in response_gainers:
-        if count<number:
-            gainers.append({"name":response["name"],
-                            "percentage":response["changesPercentage"]})
-            count+=1
+        if isinstance(response, dict) and "name" in response and "changesPercentage" in response:
+            if count < number:
+                gainers.append({
+                    "name": response["name"],
+                    "percentage": response["changesPercentage"]
+                })
+                count += 1
     return gainers
     
 def get_losers(number):
-    response_losers = requests.get("https://financialmodelingprep.com/stable/biggest-losers?apikey=ES9nZy86YlYSNkohutKivy2xDUfEq").json()
+    url = f"https://financialmodelingprep.com/stable/biggest-losers?apikey={FMP_API_KEY}"
+    
+    try:
+        response_losers = requests.get(url, timeout=10).json()
+    except Exception as e:
+        st.error(f"Error fetching losers from FMP: {e}")
+        return [{"name": "API Fetch Failed", "percentage": 0}]
+        
+    if not isinstance(response_losers, list):
+        st.error(f"FMP API returned an unexpected response for losers: {response_losers}")
+        return [{"name": "API Key Invalid/Expired", "percentage": 0}]
+
     count = 0
     losers = []
     for response in response_losers:
-        if count<number:
-            losers.append({"name":response["name"],
-                            "percentage":response["changesPercentage"]})
-            count+=1
+        if isinstance(response, dict) and "name" in response and "changesPercentage" in response:
+            if count < number:
+                losers.append({
+                    "name": response["name"],
+                    "percentage": response["changesPercentage"]
+                })
+                count += 1
     return losers
 
 
+with st.sidebar:
+    st.title("Top 5 Gainers:")
+    for gainer in get_gainers(5):
+        color = "green" if gainer["percentage"] > 0 else "blue"
+        st.badge(f"{gainer['name']} ({gainer['percentage']}%)", color=color)
+    
+    st.title("Top 5 Losers:")
+    for loser in get_losers(5):
+        color = "red" if loser["percentage"] < 0 else "blue"
+        st.badge(f"{loser['name']} ({loser['percentage']}%)", color=color)
+
 def _fetch_articles_apitube(entity: str) -> list:
-    """Plain helper function to fetch recent articles with sentiment from API Tube."""
     try:
         articles = []
-     
-        APITUBE_API_KEY = "api_live_auBHrOWRNh2UGkBZaczSeeOM5GNDnHd3ZqJNFbTT3gHUvg" 
+      
+        APITUBE_API_KEY = "api_live_auBHrOWRNh2UGkBZaczSeeOM5GNDnHd3ZqJNFbTT3gHUvg"
         url = (
             "https://api.apitube.io/v1/news/everything?title=" + entity +
             "&published_at.start=2025-10-20&published_at.end=2025-10-25"
@@ -65,7 +104,6 @@ def _fetch_articles_apitube(entity: str) -> list:
                              .get("score", 0.0)
                     )
                 })
-
       
         if articles:
             with open("articles.txt", "w") as f:
@@ -73,7 +111,7 @@ def _fetch_articles_apitube(entity: str) -> list:
                     f.write(str(a) + "\n")
         return articles
     except Exception as e:
-       
+        
         return {"error": f"Failed to fetch: {e}"}
 
 pass
@@ -85,7 +123,7 @@ def visualize_sentiments():
             for line in file:
                 try:
                     article = eval(line.strip())
-               
+                
                     sentiments.append(float(article.get("sentiment", 0))) 
                 except Exception:
                     continue
@@ -93,7 +131,7 @@ def visualize_sentiments():
     if not sentiments:
 
         st.warning("Using hardcoded demo data for visualization due to fetch failure.")
-        sentiments = [0.6, -0.3, 0.0, 0.2, -0.5] 
+        sentiments = [0.6, -0.3, 0.0, 0.2, -0.5, 0.9, -0.8] 
 
 
     labels = []
@@ -149,19 +187,20 @@ if st.button("Submit", type="primary"):
 
     try:
         llm = LLM(
-            model="groq/openai/gpt-oss-120b", 
+            model="roq/openai/gpt-oss-120b", 
             temperature=0.2,
             top_p=0.9
         )
     except Exception as e:
-        st.error(f"LLM initialization failed. Ensure GROQ_API_KEY is set and model is valid. Error: {e}")
+        
+        st.error(f"LLM initialization failed. Ensure GROQ_API_KEY is set and the model is valid. Error: {e}")
         llm = None 
 
     if llm:
 
         collector = Agent(
             role = "Data Processor & Article Counter",
-          
+            
             goal = "Read the articles provided in the 'article_content' input, count them, and prepare a list of article sentiments and bodies for the next agent.",
             backstory = "The {topic} is an organisation or stock name. Your job is to process the collected news articles provided in the task input. **Do NOT use any tools.**",
             tools = [], 
@@ -198,13 +237,13 @@ if st.button("Submit", type="primary"):
         collect = Task(
             description = (
                 "1. The {topic} will be an organisation of stock name.\n"
-             
+            
                 "2. Read the full content of the articles provided in the 'article_content' input:\n\n"
                 "{article_content}\n\n"
                 "3. Count the total number of articles you processed.\n"
                 "4. Prioritize the latest trends and news on the {topic} from the content provided.\n"
             ),
-     
+            
             input_variables=["topic", "article_content"], 
             expected_output = "The total count of articles and a structured, comprehensive list of the article bodies and their associated sentiment scores (e.g., [{'body': '...', 'sentiment': 0.8}, ...])",
             agent = collector
@@ -240,7 +279,7 @@ if st.button("Submit", type="primary"):
         )
 
         try:
-           
+            
             articles = _fetch_articles_apitube(inputStock)
 
             
@@ -256,10 +295,10 @@ if st.button("Submit", type="primary"):
                     for a in demo_articles:
                         f.write(str(a) + "\n")
             
-          
+            
             visualize_sentiments()
 
-          
+            
             article_content = ""
             if os.path.exists("articles.txt"):
                 with open("articles.txt", "r") as f:
@@ -268,7 +307,7 @@ if st.button("Submit", type="primary"):
                 st.error("articles.txt file is missing after fetch/fallback.")
 
 
-           
+            
             response = crew.kickoff(
                 inputs={
                     "topic": inputStock,
