@@ -1,5 +1,5 @@
 # ================================================================
-# 📊 AI Financial Advisor — With Manual Tool Execution (Stable)
+# 📊 AI Financial Advisor — NO transformers dependency (FAST FIX)
 # ================================================================
 
 from crewai import Agent, Task, Crew, LLM, Process
@@ -11,7 +11,6 @@ import streamlit as st
 import requests
 import matplotlib.pyplot as plt
 import pandas as pd
-from transformers import pipeline
 
 # Load Environment
 load_dotenv()
@@ -28,16 +27,15 @@ st.write(
 inputStock = st.text_input("Enter stock name or company name:")
 
 if st.button("Submit", type="primary"):
-    # ✅ Model (used for summarization & recommendation)
     llm = LLM(
-        model="groq/openai/gpt-oss-120b",  # You can later swap this with a better model if needed
+        model="groq/openai/gpt-oss-120b",
         temperature=0.2,
         top_p=0.9
     )
 
-    # ------------------------------
-    # 📡 1. TOOL to fetch articles
-    # ------------------------------
+    # ------------------------------------------------
+    # 📡 TOOL: Fetch articles with sentiment from APITube
+    # ------------------------------------------------
     @tool("get_articles_APItube")
     def get_articles_APItube(entity: str) -> list:
         """Fetch news articles for the given entity using APITube API."""
@@ -50,11 +48,9 @@ if st.button("Submit", type="primary"):
                 f"&sort.order=desc&language.code=en&api_key={APITUBE_API_KEY}"
             )
             response = requests.get(url).json()
-            count = 0
 
             if response["status"] == "ok":
                 for result in response["results"]:
-                    count += 1
                     articles.append({
                         "article_body": result["body"],
                         "sentiment": result["sentiment"]["overall"]["score"],
@@ -70,32 +66,15 @@ if st.button("Submit", type="primary"):
         except Exception as e:
             return {"error": f"Failed to fetch articles: {e}"}
 
-    # ------------------------------
-    # 🧠 2. Sentiment Analysis Tool (Backup)
-    # ------------------------------
-    @tool("sentiment_analysis")
-    def sentiment_analysis(articles: list[str]) -> str:
-        """Run FinBERT sentiment analysis on article texts."""
-        model = pipeline("sentiment-analysis", model="ProsusAI/finbert")
-        sentiments = []
-        for text in articles:
-            if not text:
-                sentiments.append({"label": "neutral", "score": 0.0})
-                continue
-            result = model(text[:512])[0]
-            sentiments.append(result)
-        return sentiments
-
-    # ------------------------------
-    # 🕵️ 3. Crew Agents
-    # ------------------------------
+    # ------------------------------------------------
+    # 🧠 Crew Agents
+    # ------------------------------------------------
     collector = Agent(
         role="Articles collector",
-        goal="Collects the articles related to the topic using the tool.",
+        goal="Collects articles related to the topic using the tool.",
         backstory="Fetch latest articles for the company or stock.",
         tools=[get_articles_APItube],
-        llm=llm,
-        allow_delegation=False
+        llm=llm
     )
 
     summerizer = Agent(
@@ -112,26 +91,12 @@ if st.button("Submit", type="primary"):
         llm=llm
     )
 
-    # ------------------------------
-    # 📝 4. Tasks
-    # ------------------------------
-    collect = Task(
-        description="Collect all the news articles using tool.",
-        expected_output="List of articles",
-        agent=collector
-    )
-
-    summerize = Task(
-        description="Summarize collected articles.",
-        expected_output="Summary of articles",
-        agent=summerizer
-    )
-
-    analyse = Task(
-        description="Recommend Buy/Sell/Hold based on sentiment.",
-        expected_output="Recommendation with reasoning",
-        agent=analyser
-    )
+    # ------------------------------------------------
+    # 📝 Tasks
+    # ------------------------------------------------
+    collect = Task(description="Collect news articles", agent=collector)
+    summerize = Task(description="Summarize articles", agent=summerizer)
+    analyse = Task(description="Recommend Buy/Sell/Hold", agent=analyser)
 
     crew = Crew(
         agents=[collector, summerizer, analyser],
@@ -139,9 +104,9 @@ if st.button("Submit", type="primary"):
         process=Process.sequential
     )
 
-    # ------------------------------
-    # 🧭 5. Manual Article Fetch First
-    # ------------------------------
+    # ------------------------------------------------
+    # 🧭 Manual Article Fetch (Stable)
+    # ------------------------------------------------
     articles = get_articles_APItube(inputStock)
     if isinstance(articles, dict) and "error" in articles:
         st.error(f"❌ Error fetching articles: {articles['error']}")
@@ -150,14 +115,13 @@ if st.button("Submit", type="primary"):
     else:
         st.success(f"✅ {len(articles)} articles fetched for {inputStock}")
 
-        # 🚀 Run Crew AFTER data is fetched
         response = crew.kickoff(inputs={"topic": inputStock, "articles": articles})
         st.write("Analyzing trends for:", inputStock)
         st.write("Result:", response.raw)
 
-        # ------------------------------
-        # 📊 6. Visualization Section
-        # ------------------------------
+        # ------------------------------------------------
+        # 📊 Visualization Section
+        # ------------------------------------------------
         sentiments = []
         try:
             with open("articles.txt", "r") as file:
@@ -204,7 +168,7 @@ if st.button("Submit", type="primary"):
             # 📊 Bar Chart
             st.bar_chart(sentiment_df['Sentiment'].value_counts())
 
-            # 🧮 Final Recommendation
+            # 📌 Final Recommendation
             st.subheader("📌 Investment Recommendation")
             overall_sentiment_score = sum(sentiments) / len(sentiments)
             if overall_sentiment_score > 0.05:
