@@ -1,20 +1,15 @@
-# agent.py
-
 import os
 import requests
 import pandas as pd
 import matplotlib.pyplot as plt
 import streamlit as st
 from dotenv import load_dotenv
-# NOTE: Removed LLM import from crewai.tools as it is no longer used for data collection
+
 from crewai import Agent, Task, Crew, LLM, Process
 from crewai.tools import tool as crew_tool
 
-# ---------------------------------------------------------
-# 🔐 Load API Keys
-# ---------------------------------------------------------
 load_dotenv()
-# NOTE: Groq API Key is not strictly needed here if set as ENV variable, but kept for reference
+
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 
 st.set_page_config(page_title="Market Trends Analyst", layout="centered")
@@ -46,27 +41,12 @@ def get_losers(number):
             count+=1
     return losers
 
-# with st.sidebar:
-#     st.title("Top 5 gainers:")
-#     for gainer in get_gainers(5):
-#         st.markdown(
-#     ":green-badge["+gainer['name']+"] :blue-badge[+"+str(gainer['percentage'])+"%]"
-#         )
-#     st.title("Top 5 losers:")
-#     for losers in get_losers(5):
-#         st.markdown(
-#     ":red-badge["+losers['name']+"] :blue-badge["+str(losers['percentage'])+"%]"
-#         )
 
-# ---------------------------------------------------------
-# 📰 Plain helper to fetch articles (call this directly)
-# ---------------------------------------------------------
-# NOTE: This function is called directly before crew.kickoff() and saves to articles.txt
 def _fetch_articles_apitube(entity: str) -> list:
     """Plain helper function to fetch recent articles with sentiment from API Tube."""
     try:
         articles = []
-        # NOTE: Using a placeholder API key for demonstration; replace with secure key later
+     
         APITUBE_API_KEY = "api_live_auBHrOWRNh2UGkBZaczSeeOM5GNDnHd3ZqJNFbTT3gHUvg" 
         url = (
             "https://api.apitube.io/v1/news/everything?title=" + entity +
@@ -86,28 +66,18 @@ def _fetch_articles_apitube(entity: str) -> list:
                     )
                 })
 
-        # Save for visualization (Used by visualize_sentiments and read for CrewAI)
+      
         if articles:
             with open("articles.txt", "w") as f:
                 for a in articles:
                     f.write(str(a) + "\n")
         return articles
     except Exception as e:
-        # Return a dictionary with an error message on failure
+       
         return {"error": f"Failed to fetch: {e}"}
 
-# ---------------------------------------------------------
-# 🛠 CrewAI Tool wrapper (REMOVED: Tool is no longer needed)
-# ---------------------------------------------------------
-# @crew_tool("get_articles_APItube")
-# def get_articles_APItube_tool(entity: str) -> str:
-#     # ... Tool is removed to force the agent to use the pre-fetched file content
-#     # ...
 pass
 
-# ---------------------------------------------------------
-# 📊 Visualization (pie + bar + recommendation banner) - Remains unchanged
-# ---------------------------------------------------------
 def visualize_sentiments():
     sentiments = []
     if os.path.exists("articles.txt"):
@@ -115,19 +85,17 @@ def visualize_sentiments():
             for line in file:
                 try:
                     article = eval(line.strip())
-                    # Ensure sentiment is a float (API returns 0 if score is missing)
+               
                     sentiments.append(float(article.get("sentiment", 0))) 
                 except Exception:
                     continue
 
-    # Fallback demo data ONLY if articles.txt is truly empty/unreadable
     if not sentiments:
-        # If the fetch failed AND the file is empty, use a consistent demo set for the chart
-        # NOTE: This only runs if the API fetch fails and the fallback writes fail/is empty
+
         st.warning("Using hardcoded demo data for visualization due to fetch failure.")
         sentiments = [0.6, -0.3, 0.0, 0.2, -0.5] 
 
-    # Categorize
+
     labels = []
     for s in sentiments:
         if s > 0.05:
@@ -146,14 +114,14 @@ def visualize_sentiments():
     col2.metric("🔴 Negative", sentiment_counts.get("Negative", 0))
     col3.metric("⚪ Neutral", sentiment_counts.get("Neutral", 0))
 
-    # 🥧 Pie Chart
+
     fig, ax = plt.subplots()
     ax.pie(
         sentiment_counts.values,
         labels=sentiment_counts.index,
         autopct="%1.1f%%",
         startangle=90,
-        # Ensure colors match the labels, handling cases where a category might be missing
+
         colors=[
             "green" if label == "Positive" else "red" if label == "Negative" else "gray"
             for label in sentiment_counts.index
@@ -162,11 +130,9 @@ def visualize_sentiments():
     ax.axis("equal")
     st.pyplot(fig)
 
-    # 📊 Bar Chart
+
     st.bar_chart(sentiment_df["Sentiment"].value_counts())
 
-    # 📌 Recommendation Banner
-    # Check if we have any sentiments before calculating average
     avg_sentiment = sum(sentiments) / len(sentiments) if sentiments else 0
     st.subheader("📌 Investment Recommendation")
     if avg_sentiment > 0.05:
@@ -176,15 +142,11 @@ def visualize_sentiments():
     else:
         st.warning("⚪ Neutral Sentiment — Recommendation: HOLD")
 
-# ---------------------------------------------------------
-# 🚀 Main UI
-# ---------------------------------------------------------
+
 inputStock = st.text_input("Enter stock name or company name:")
 
 if st.button("Submit", type="primary"):
-    # 1. LLM Initialization (Fixed model name to a standard Groq Llama 3)
-    # Using 'groq/openai/gpt-oss-120b' is non-standard. Using a valid Llama 3 8B is better.
-    # NOTE: If you must use a LiteLLM model string, verify the exact format, but Llama3 is standard.
+
     try:
         llm = LLM(
             model="groq/openai/gpt-oss-120b", 
@@ -193,17 +155,16 @@ if st.button("Submit", type="primary"):
         )
     except Exception as e:
         st.error(f"LLM initialization failed. Ensure GROQ_API_KEY is set and model is valid. Error: {e}")
-        llm = None # Set to None to prevent agents from being created
+        llm = None 
 
     if llm:
-        # Agents (Roles updated to reflect data consumption, not collection)
-        # ------------------------------------------------------------------
+
         collector = Agent(
             role = "Data Processor & Article Counter",
-            # Goal is now to consume the content provided in the task input
+          
             goal = "Read the articles provided in the 'article_content' input, count them, and prepare a list of article sentiments and bodies for the next agent.",
             backstory = "The {topic} is an organisation or stock name. Your job is to process the collected news articles provided in the task input. **Do NOT use any tools.**",
-            tools = [], # <--- CRITICAL FIX: REMOVED TOOL
+            tools = [], 
             llm = llm,
             allow_delegation = False,
             verbose = False
@@ -234,18 +195,16 @@ if st.button("Submit", type="primary"):
             verbose = False
         )
         
-        # Tasks (Updated to use the new input variable)
-        # ------------------------------------------------------------------
         collect = Task(
             description = (
                 "1. The {topic} will be an organisation of stock name.\n"
-                # CRITICAL FIX: Tell the agent where the content is coming from
+             
                 "2. Read the full content of the articles provided in the 'article_content' input:\n\n"
                 "{article_content}\n\n"
                 "3. Count the total number of articles you processed.\n"
                 "4. Prioritize the latest trends and news on the {topic} from the content provided.\n"
             ),
-            # CRITICAL FIX: Define the required inputs for this task
+     
             input_variables=["topic", "article_content"], 
             expected_output = "The total count of articles and a structured, comprehensive list of the article bodies and their associated sentiment scores (e.g., [{'body': '...', 'sentiment': 0.8}, ...])",
             agent = collector
@@ -254,7 +213,7 @@ if st.button("Submit", type="primary"):
         summerize = Task(
             description = (
                 "1. Summerize the articles you collected from collector into maximum 500 words.\n"
-                "2. Prioritize the latest trends and news on the {topic}.\n" # Fixed step number
+                "2. Prioritize the latest trends and news on the {topic}.\n" 
             ),
             expected_output = "A concise summary of the articles related to the organisation or stock given by the user, highlighting key sentiment drivers.",
             agent = summerizer
@@ -281,10 +240,10 @@ if st.button("Submit", type="primary"):
         )
 
         try:
-            # 1) Fetch articles (API call)
+           
             articles = _fetch_articles_apitube(inputStock)
 
-            # 2) Fallback to demo data if the API fetch failed (only if articles is empty AND is a dict with error)
+            
             if isinstance(articles, dict) and "error" in articles:
                 st.warning(f"No real articles fetched. Using demo data. ({articles['error']})")
                 demo_articles = [
@@ -297,10 +256,10 @@ if st.button("Submit", type="primary"):
                     for a in demo_articles:
                         f.write(str(a) + "\n")
             
-            # 3) Show charts immediately (reads articles.txt)
+          
             visualize_sentiments()
 
-            # 4) Read the content of the file to pass to the Agents (Unifying the data source)
+          
             article_content = ""
             if os.path.exists("articles.txt"):
                 with open("articles.txt", "r") as f:
@@ -309,11 +268,11 @@ if st.button("Submit", type="primary"):
                 st.error("articles.txt file is missing after fetch/fallback.")
 
 
-            # 5) Run CrewAI analysis, passing the file content as input
+           
             response = crew.kickoff(
                 inputs={
                     "topic": inputStock,
-                    "article_content": article_content # <--- PASSES FILE CONTENT TO TASK
+                    "article_content": article_content 
                 }
             )
             st.success("✅ Analysis complete!")
