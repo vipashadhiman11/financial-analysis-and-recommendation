@@ -24,9 +24,9 @@ st.write(
 inputStock = st.text_input("Enter stock name or company name:")
 
 if st.button("Submit", type="primary"):
-    # 🪶 Lighter model to reduce token usage
+ 
     llm = LLM(
-        model="groq/llama-3.2-11b-text-preview",
+        model="groq/openai/gpt-oss-120b",
         temperature=0.2,
         top_p=0.9,
         max_tokens=512
