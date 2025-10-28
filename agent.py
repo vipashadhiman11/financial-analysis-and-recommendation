@@ -186,8 +186,9 @@ inputStock = st.text_input("Enter stock name or company name:")
 if st.button("Submit", type="primary"):
 
     try:
+        # --- Updated model to use openai/gpt-oss-120b as requested ---
         llm = LLM(
-            model="roq/openai/gpt-oss-120b", 
+            model="openai/gpt-oss-120b", 
             temperature=0.2,
             top_p=0.9
         )
