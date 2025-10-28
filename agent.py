@@ -1,85 +1,108 @@
+import os
+import json
+import requests
+from datetime import date, timedelta
+
+# Data Visualization and Streamlit
+import streamlit as st
+import pandas as pd
+import matplotlib.pyplot as plt
+
+# CrewAI & LLM
 from crewai import Agent, Task, Crew, LLM, Process
 from crewai.tools import tool
-from datetime import date,timedelta
 from dotenv import load_dotenv
-import os
-import streamlit as st
-import requests # <--- **IMPORT REQUESTS**
-import json # <--- **IMPORT JSON**
-import pandas as pd # <--- **IMPORT PANDAS for charting**
-import matplotlib.pyplot as plt # <--- **IMPORT MATPLOTLIB for pie chart**
+
+# --- Configuration & Setup ---
 
 load_dotenv()
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 
 st.set_page_config(page_title = "Market Trends Analyst", layout = "centered")
 st.title("Your Financial Advisor")
-st.write('Hello, I am your financial advisor. I will give you a complete analysis of your stock or organisation. I will also recomment you if you should Buy/ Sell or Hold the stock :sunglasses:')
+st.write('Hello, I am your financial advisor. I will give you a complete analysis of your stock or organisation. I will also recommend you if you should Buy/Sell or Hold the stock :sunglasses:')
 
 inputStock = st.text_input("Enter stock name or company name:")
 
 if st.button("Submit", type="primary"):
+    # Note: When using CrewAI with Groq, you might need a custom LLM adapter 
+    # if using their specific model names. For this example, we assume 'llm'
+    # is correctly set up to use the API key from the environment.
+    # If using Groq via Litellm (which crewai uses), a model like 'mixtral-8x7b-instruct-v0.1' 
+    # or 'llama2-70b-4096' is typical, but we'll use your placeholder.
     llm = LLM(model = "groq/openai/gpt-oss-120b",
-                temperature = 0.2,
-                top_p = 0.9
-        )
+              temperature = 0.2,
+              top_p = 0.9)
     
+    # --- Tools Definition ---
     @tool("get_articles_APItube")
-    def get_articles_APItube(entity: str) -> list[dict]:
+    def get_articles_APItube(entity: str) -> str:
       """
-      This function will take the entity as an input and returns the list of all articles collected with their sentiment.
+      This function takes the entity as an input and returns a string containing 
+      a list of all articles collected along with their sentiment labels and the overall sentiment counts.
       
       args:
         entity: name of any organisation or stock 
       """
       try:
         articles = []
+        # NOTE: Using a placeholder API key and dates from your original code.
         APITUBE_API_KEY="api_live_auBHrOWRNh2UGkBZaczSeeOM5GNDnHd3ZqJNFbTT3gHUvg"
-        # Today's date is 2025-10-28, keeping the date range as in the original code for consistency
         url = "https://api.apitube.io/v1/news/everything?title="+entity+"&published_at.start=2025-10-20&published_at.end=2025-10-25&sort.order=desc&language.code=en&api_key="+APITUBE_API_KEY
         response = requests.get(url).json()
         
-        # --- Simplified Article Collection Loop ---
+        pos = 0
+        neg = 0
+        neu = 0
+        
         if response["status"] == "ok":
             for result in response["results"]:
-                article = {}
-                article["article_body"] = result["body"]
-                # Convert score (-1 to 1) to a simple label for the LLM's use
+                # Limit articles to a manageable number for the LLM
+                if len(articles) >= 20: 
+                    break
+
+                # Extract score and determine label
                 score = result["sentiment"]["overall"]["score"]
                 if score >= 0.3:
                     label = "Positive"
+                    pos += 1
                 elif score <= -0.3:
                     label = "Negative"
+                    neg += 1
                 else:
                     label = "Neutral"
+                    neu += 1
                     
-                article["sentiment_label"] = label 
-                articles.append(article)
-                if len(articles) >= 20: # Limit to 20 articles
-                    break
+                article_summary = f"Sentiment: {label}. Body: {result['body'][:200]}..."
+                articles.append(article_summary)
             
-            # Write a summary of sentiment counts to a file for the analyser agent to reference
-            pos = sum(1 for a in articles if a["sentiment_label"] == "Positive")
-            neg = sum(1 for a in articles if a["sentiment_label"] == "Negative")
-            neu = sum(1 for a in articles if a["sentiment_label"] == "Neutral")
-            sentiment_summary = f'{{"positive": {pos}, "negative": {neg}, "neutral": {neu}}}'
+            # --- CRITICAL: Generate the JSON string for the next agent ---
+            sentiment_counts_json = json.dumps({
+                "Positive": pos,
+                "Negative": neg,
+                "Neutral": neu
+            })
             
-            with open("sentiment_summary.txt", "w") as file:
-                file.write(sentiment_summary)
-            
-            return articles
+            # This string is the output the LLM sees
+            final_output = (
+                f"Total articles collected: {len(articles)}\n"
+                f"Summary of articles:\n"
+                f"{'---'.join(articles)}\n\n"
+                f"SENTIMENT_COUNTS_JSON: {sentiment_counts_json}"
+            )
+            return final_output
         else:
-             return {"error": "API returned non-ok status."}
+             return "Failed to fetch articles. API returned non-ok status."
              
       except Exception as e:
-        return {"error": f"Failed to fetch articles: {e}"}
+        return f"Failed to fetch articles due to an exception: {e}"
 
-    # Removed the redundant sentiment_analysis tool
+    # --- Agents Definition ---
 
     collector = Agent(
         role = "Articles collector",
-        goal = "Collects articles and their sentiments for {topic} using the available tool.",
-        backstory = "The {topic} will be an organisation or stock name. Use the tool 'get_articles_APItube' to fetch articles and ensure the sentiment counts (positive, negative, neutral) are available for the next agent.",
+        goal = "Collects news articles and extracts sentiment data for {topic}.",
+        backstory = "Your task is to use the 'get_articles_APItube' tool to fetch news. You MUST ensure the final output contains the sentiment counts in the exact 'SENTIMENT_COUNTS_JSON' format.",
         tools = [get_articles_APItube],
         llm = llm,
         allow_delegation = False,
@@ -88,8 +111,8 @@ if st.button("Submit", type="primary"):
     
     summerizer = Agent(
         role = "Article summerizer",
-        goal = "Summerize the articles collected by collector to fetch the crux of it",
-        backstory = "You are summerizing all the articles into one with utmost precision and keeping in mind the trends we are getting from the articles.",
+        goal = "Summarize the key findings from the collected articles.",
+        backstory = "You are summarizing all article findings into one report with utmost precision, focusing on market trends.",
         llm = llm,
         allow_delegation = False,
         verbose = False
@@ -97,106 +120,116 @@ if st.button("Submit", type="primary"):
     
     analyser = Agent(
         role = "Financial Analyst",
-        goal = "You will guide user to either Buy/Sell or Hold the stock of the organisation.",
+        goal = "Guide the user to either Buy/Sell or Hold the stock of the organisation.",
         backstory = (
-            "You are working on identifying latest trends about the topic: {topic}."
-            "You will observe the sentiment of all articles. You MUST look up the sentiment_summary.txt file to get the final positive, negative, and neutral article counts and include them in your final output in a **JSON** format."
-            "Based on the sentiment, you will predict the overall market trend and recommend to buy/sell or hold the stock."
-            "Your target is to maximise user profit."
+            "You are working on identifying the latest trends about the topic: {topic}. "
+            "You must use the sentiment counts provided by the previous tasks to determine the overall market sentiment and provide a recommendation."
         ),
         llm = llm,
+        # IMPORTANT: Allow delegation is False and no tools are listed, preventing the Groq tool error.
         allow_delegation = False,
         verbose = False
     )
     
+    # --- Tasks Definition ---
+    
     collect = Task(
         description = (
-            "1. Collect all the news articles on the provided {topic} using tool 'get_articles_APItube'.\n"
-            "2. Prioritize the latest trends and news on the {topic}.\n"
+            "1. Use the tool 'get_articles_APItube' to collect all the news articles on the provided {topic}.\n"
+            "2. Ensure the output is structured to easily pass the article summaries and sentiment counts to the next agent."
         ),
-        expected_output = "A list of articles and their respective Positive, Negative, or Neutral sentiment labels.",
+        expected_output = (
+            "A summary of articles and the final sentiment counts in the exact JSON format: "
+            "`SENTIMENT_COUNTS_JSON: {\"Positive\": <count>, \"Negative\": <count>, \"Neutral\": <count>}`"
+        ),
         agent = collector
     )
     
     summerize = Task(
         description = (
-            "1. Summarize the articles you collected from collector into a concise report (maximum 500 words).\n"
-            "2. Focus on the latest trends and news on the {topic}.\n"
+            "1. Summarize the articles collected from the previous task into a maximum 500-word report.\n"
+            "2. **Crucially**, include the `SENTIMENT_COUNTS_JSON` from the previous task at the end of your summary to ensure it is passed to the final analyser."
         ),
-        expected_output = "A concise summary of the key findings from the collected articles.",
+        expected_output = (
+            "A concise summary of the articles followed by the exact sentiment counts in the JSON format: "
+            "`SENTIMENT_COUNTS_JSON: {\"Positive\": <count>, \"Negative\": <count>, \"Neutral\": <count>}`"
+        ),
         agent = summerizer
     )
     
     analyse = Task(
         description = (
-            "1. Use the collected information and summary to create a detailed financial analysis on {topic}.\n"
-            "2. Based on the overall market sentiment, guide the user to either **Buy/Sell or Hold** the stock.\n"
-            "3. After your analysis and recommendation, you **MUST** include the final sentiment counts in the following JSON format at the very end of your output, replacing the placeholders with the actual numbers: "
+            "1. Use the summary and the sentiment counts from the previous task's output to perform a detailed financial analysis on {topic}.\n"
+            "2. Identify the overall market sentiment (Positive, Negative, or Neutral) based on the counts.\n"
+            "3. Based on the overall sentiment and market trends, provide a clear recommendation: **Buy, Sell, or Hold**.\n"
+            "4. Your final output MUST end with the sentiment counts extracted from the previous task in the required JSON format: "
             "`SENTIMENT_COUNTS_JSON: {\"Positive\": <count>, \"Negative\": <count>, \"Neutral\": <count>}`"
         ),
-        expected_output = "A detailed analysis, a Buy/Sell/Hold recommendation, and the sentiment counts in the required JSON format at the end.",
+        expected_output = "Provide a detailed analysis, a Buy/Sell/Hold recommendation, and the sentiment counts in the required JSON format at the end.",
         agent = analyser
     )
+    
+    # --- Crew Setup & Execution ---
     
     crew = Crew(
         agents = [collector, summerizer, analyser],
         tasks = [collect, summerize, analyse],
         process=Process.sequential,
-        verbose = True # Set to True to debug in Streamlit if needed
+        verbose = True # Set to True for better debugging in Streamlit
     )
     
     try:
         with st.spinner(f"Analysing trends for: {inputStock}..."):
-            response = crew.kickoff(inputs = {"topic": inputStock})
+            full_result = crew.kickoff(inputs = {"topic": inputStock})
         
         st.subheader(f"📈 Financial Analysis for **{inputStock}**")
         
-        # --- Extract and Display Analysis ---
-        full_result = response
+        # --- Streamlit Output & Pie Chart Generation ---
+        json_start_tag = "SENTIMENT_COUNTS_JSON:"
         
-        # 1. Extract the JSON from the end of the response
-        json_start_tag = "SENTIMENT_COUNTS_JSON: "
         if json_start_tag in full_result:
-            json_str = full_result.split(json_start_tag)[-1].strip()
-            # Clean up the JSON string (LLMs can sometimes add extra backticks or characters)
-            if json_str.startswith('```json'):
-                json_str = json_str.replace('```json', '').replace('```', '').strip()
+            # 1. Extract the Analysis Text and JSON string
+            parts = full_result.split(json_start_tag)
+            analysis_text = parts[0].strip()
+            json_str = parts[-1].strip()
+            
+            # Clean up the JSON string (LLMs can sometimes add extra formatting)
+            json_str = json_str.replace('```json', '').replace('```', '').strip()
                 
             try:
                 sentiment_counts = json.loads(json_str)
                 
-                # 2. Display the Pie Chart
+                # 2. Display the Analysis Text first
+                st.subheader("📝 Analyst Report")
+                st.markdown(analysis_text)
                 st.markdown("---")
+                
+                # 3. Display the Pie Chart
                 st.subheader("📊 Sentiment Distribution of News Articles")
                 
-                labels = sentiment_counts.keys()
-                sizes = sentiment_counts.values()
+                labels = list(sentiment_counts.keys())
+                sizes = list(sentiment_counts.values())
                 
-                # Define colors for better representation
-                colors = ['#4CAF50', '#F44336', '#FFEB3B'] # Green, Red, Yellow
-                
-                # Create a DataFrame for Matplotlib
-                df = pd.DataFrame(sizes, index=labels, columns=['Count'])
-                
-                fig, ax = plt.subplots()
-                # Create the pie chart
-                ax.pie(df['Count'], labels=labels, autopct='%1.1f%%', startangle=90, colors=colors, 
-                       wedgeprops={'edgecolor': 'black'})
-                ax.axis('equal') # Equal aspect ratio ensures that pie is drawn as a circle.
-                
-                st.pyplot(fig)
-                
-                # 3. Display the main analysis text (without the final JSON tag)
-                analysis_text = full_result.split(json_start_tag)[0].strip()
-                st.markdown("---")
-                st.subheader("📝 Analyst Report")
-                st.write(analysis_text)
+                # Check if there is data to plot
+                if sum(sizes) > 0:
+                    # Define colors for better representation (Positive=Green, Negative=Red, Neutral=Yellow)
+                    colors = ['#4CAF50', '#F44336', '#FFEB3B']
+                    
+                    fig, ax = plt.subplots(figsize=(6, 6))
+                    # Create the pie chart
+                    ax.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=90, colors=colors, 
+                           wedgeprops={'edgecolor': 'black'})
+                    ax.axis('equal') # Equal aspect ratio ensures that pie is drawn as a circle.
+                    
+                    st.pyplot(fig)
+                else:
+                    st.warning("No articles were found to generate the sentiment chart.")
                 
             except json.JSONDecodeError as e:
                 st.error(f"Failed to parse sentiment counts for chart. Error: {e}")
                 st.write("Result (Raw):", full_result) # Display raw result if parsing fails
         else:
-            st.warning("Could not find the sentiment counts in the expected format. Displaying raw result.")
+            st.warning("The final analysis did not contain the required sentiment counts for charting.")
             st.write("Result (Raw):", full_result)
         
     except Exception as e:
