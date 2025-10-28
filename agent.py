@@ -25,7 +25,7 @@ st.write(
 )
 
 def get_gainers(number: int) -> list[dict]:
-    response_gainers = requests.get("https://financialmodelingprep.com/stable/biggest-gainers?apikey=ES9nZy86YlYSEW9NkohutKivy2xDUfEq").json()
+    response_gainers = requests.get("https://financialmodelingprep.com/stable/biggest-gainers?apikey=l0YbTN9l3jYhJnfsNiiuU9khcDLa9tia").json()
     count = 0
     gainers = []
     for response in response_gainers:
@@ -36,7 +36,7 @@ def get_gainers(number: int) -> list[dict]:
     return gainers
     
 def get_losers(number: int) -> list[dict]:
-    response_losers = requests.get("https://financialmodelingprep.com/stable/biggest-losers?apikey=ES9nZy86YlYSEW9NkohutKivy2xDUfEq").json()
+    response_losers = requests.get("https://financialmodelingprep.com/stable/biggest-losers?apikey=l0YbTN9l3jYhJnfsNiiuU9khcDLa9tia").json()
     count = 0
     losers = []
     for response in response_losers:
