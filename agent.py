@@ -171,7 +171,7 @@ inputStock = st.text_input("Enter stock name or company name:")
 if st.button("Submit", type="primary"):
     # Lightweight model string compatible with Groq via LiteLLM in CrewAI
     llm = LLM(
-        model="groq/llama-3.1-8b-instant",
+        model="groq/openai/gpt-oss-120b",
         temperature=0.2,
         top_p=0.9
     )
