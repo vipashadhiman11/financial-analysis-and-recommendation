@@ -135,10 +135,9 @@ if st.button("Submit", type="primary"):
     
     collector = Agent(
         role = "Articles collector",
-        goal = "Asks the user about the {topic} and collects the articles releated to that topic using tool.",
+        goal = "Asks the user about the {topic} and collects the articles releated to that topic.",
         backstory = "The {topic} will be an organisation of stock name. Don't take any other input except topic"
                     "fetch the articles.\n",
-        tools=[get_articles_APItube],
         llm = llm,
         allow_delegation = False,
         verbose = False
