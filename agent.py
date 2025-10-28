@@ -137,7 +137,7 @@ if st.button("Submit", type="primary"):
         role = "Articles collector",
         goal = "Asks the user about the {topic} and collects the articles releated to that topic using tools.",
         backstory = "The {topic} will be an organisation of stock name. Don't take any other input except topic"
-                    "Use the tool 'get_articles_APItube' to fetch the articles.\n"
+                    "fetch the articles.\n"
                     "Give the total number of articles collected.",
         llm = llm,
         allow_delegation = False,
