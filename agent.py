@@ -1,4 +1,13 @@
 import os
+from litellm import llm_config
+
+os.environ["LITELLM_DEFAULT_MODEL"] = "openai/gpt-oss-120b"
+os.environ["LITELLM_FALLBACKS"] = ""
+os.environ["CREWAI_DISABLE_FALLBACK"] = "true"
+
+llm_config["fallbacks"] = []
+llm_config["default_model"] = "openai/gpt-oss-120b"
+
 import requests
 import pandas as pd
 import matplotlib.pyplot as plt
