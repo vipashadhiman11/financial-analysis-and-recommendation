@@ -1,3 +1,7 @@
+# ================================================================
+# 📊 AI Financial Advisor — With Manual Tool Execution (Stable)
+# ================================================================
+
 from crewai import Agent, Task, Crew, LLM, Process
 from crewai.tools import tool
 from datetime import date, timedelta
@@ -7,13 +11,13 @@ import streamlit as st
 import requests
 import matplotlib.pyplot as plt
 import pandas as pd
-import time
+from transformers import pipeline
 
-# 📌 Load environment variables
+# Load Environment
 load_dotenv()
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 
-# 🧭 Streamlit UI
+# Streamlit UI
 st.set_page_config(page_title="Market Trends Analyst", layout="centered")
 st.title("Your Financial Advisor")
 st.write(
@@ -24,145 +28,148 @@ st.write(
 inputStock = st.text_input("Enter stock name or company name:")
 
 if st.button("Submit", type="primary"):
- 
+    # ✅ Model (used for summarization & recommendation)
     llm = LLM(
-        model="groq/openai/gpt-oss-120b",
+        model="groq/openai/gpt-oss-120b",  # You can later swap this with a better model if needed
         temperature=0.2,
-        top_p=0.9,
-        max_tokens=512
+        top_p=0.9
     )
 
+    # ------------------------------
+    # 📡 1. TOOL to fetch articles
+    # ------------------------------
     @tool("get_articles_APItube")
-    def get_articles_APItube(entity: str) -> list[list]:
-        """
-        Fetch recent news articles and sentiment data for a given company or stock.
-        """
+    def get_articles_APItube(entity: str) -> list:
+        """Fetch news articles for the given entity using APITube API."""
         try:
             articles = []
             APITUBE_API_KEY = "api_live_auBHrOWRNh2UGkBZaczSeeOM5GNDnHd3ZqJNFbTT3gHUvg"
-
-            today = date.today()
-            last_week = today - timedelta(days=7)
-
             url = (
                 f"https://api.apitube.io/v1/news/everything?title={entity}"
-                f"&published_at.start={last_week}&published_at.end={today}"
+                f"&published_at.start=2025-10-20&published_at.end=2025-10-25"
                 f"&sort.order=desc&language.code=en&api_key={APITUBE_API_KEY}"
             )
-
-            response = requests.get(url, timeout=15).json()
+            response = requests.get(url).json()
             count = 0
 
-            if response.get("status") == "ok":
-                for result in response.get("results", []):
-                    if "sentiment" in result and "overall" in result["sentiment"]:
-                        count += 1
-                        article = {}
-                        article["article_body"] = result.get("body", "")
-                        article["sentiment"] = result["sentiment"]["overall"].get("score", 0)
-                        articles.append(article)
+            if response["status"] == "ok":
+                for result in response["results"]:
+                    count += 1
+                    articles.append({
+                        "article_body": result["body"],
+                        "sentiment": result["sentiment"]["overall"]["score"],
+                        "published_at": result.get("published_at", "")
+                    })
 
-                while response.get("has_next_pages"):
-                    if count < 20:
-                        next_page_url = response["next_page"]
-                        next_page_response = requests.get(next_page_url, timeout=15).json()
-                        if next_page_response.get("status") == "ok":
-                            for result in next_page_response.get("results", []):
-                                if "sentiment" in result and "overall" in result["sentiment"]:
-                                    count += 1
-                                    article = {}
-                                    article["article_body"] = result.get("body", "")
-                                    article["sentiment"] = result["sentiment"]["overall"].get("score", 0)
-                                    articles.append(article)
-                    else:
-                        break
-
-            # 📝 Save sentiments for charts
+            # 💾 Save locally for charting
             with open("articles.txt", "w") as file:
                 for article in articles:
                     file.write(str(article) + "\n")
 
             return articles
-
         except Exception as e:
             return {"error": f"Failed to fetch articles: {e}"}
 
-    # 🧠 Agents
+    # ------------------------------
+    # 🧠 2. Sentiment Analysis Tool (Backup)
+    # ------------------------------
+    @tool("sentiment_analysis")
+    def sentiment_analysis(articles: list[str]) -> str:
+        """Run FinBERT sentiment analysis on article texts."""
+        model = pipeline("sentiment-analysis", model="ProsusAI/finbert")
+        sentiments = []
+        for text in articles:
+            if not text:
+                sentiments.append({"label": "neutral", "score": 0.0})
+                continue
+            result = model(text[:512])[0]
+            sentiments.append(result)
+        return sentiments
+
+    # ------------------------------
+    # 🕵️ 3. Crew Agents
+    # ------------------------------
     collector = Agent(
         role="Articles collector",
-        goal="Collect articles for the given topic using the APItube tool.",
-        backstory="You will use the APItube tool to fetch relevant articles for the company or stock.",
+        goal="Collects the articles related to the topic using the tool.",
+        backstory="Fetch latest articles for the company or stock.",
         tools=[get_articles_APItube],
         llm=llm,
-        allow_delegation=False,
-        verbose=False
+        allow_delegation=False
     )
 
     summerizer = Agent(
-        role="Article summerizer",
-        goal="Summarize all collected articles into one clear, insightful summary.",
-        backstory="You will analyze and summarize the articles with precision, focusing on trends.",
-        llm=llm,
-        allow_delegation=False,
-        verbose=False
+        role="Article summarizer",
+        goal="Summarizes all the articles to extract market sentiment.",
+        backstory="Analyzes key trends and sentiments.",
+        llm=llm
     )
 
     analyser = Agent(
         role="Financial Analyst",
-        goal="Guide user to either Buy/Sell or Hold the stock based on article sentiment.",
-        backstory="Observe the sentiment of all articles, identify trends, and make a recommendation.",
-        llm=llm,
-        allow_delegation=False,
-        verbose=False
+        goal="Recommends Buy/Sell/Hold based on sentiment.",
+        backstory="Uses sentiment to suggest investment action.",
+        llm=llm
     )
 
-    # 🧭 Tasks
+    # ------------------------------
+    # 📝 4. Tasks
+    # ------------------------------
     collect = Task(
-        description="Use APItube to collect articles about the topic.",
-        expected_output="A list of articles with sentiment scores.",
+        description="Collect all the news articles using tool.",
+        expected_output="List of articles",
         agent=collector
     )
 
     summerize = Task(
-        description="Summarize the collected articles.",
-        expected_output="A summarized text of articles and trends.",
+        description="Summarize collected articles.",
+        expected_output="Summary of articles",
         agent=summerizer
     )
 
     analyse = Task(
-        description="Analyze sentiment of articles and give investment recommendation.",
-        expected_output="Positive/Negative/Neutral sentiment and Buy/Sell/Hold recommendation.",
+        description="Recommend Buy/Sell/Hold based on sentiment.",
+        expected_output="Recommendation with reasoning",
         agent=analyser
     )
 
     crew = Crew(
         agents=[collector, summerizer, analyser],
         tasks=[collect, summerize, analyse],
-        process=Process.sequential,
-        verbose=False
+        process=Process.sequential
     )
 
-    # 🚀 Run Crew
-    try:
-        response = crew.kickoff(inputs={"topic": inputStock})
+    # ------------------------------
+    # 🧭 5. Manual Article Fetch First
+    # ------------------------------
+    articles = get_articles_APItube(inputStock)
+    if isinstance(articles, dict) and "error" in articles:
+        st.error(f"❌ Error fetching articles: {articles['error']}")
+    elif not articles:
+        st.warning("⚠️ No articles found for this stock.")
+    else:
+        st.success(f"✅ {len(articles)} articles fetched for {inputStock}")
+
+        # 🚀 Run Crew AFTER data is fetched
+        response = crew.kickoff(inputs={"topic": inputStock, "articles": articles})
         st.write("Analyzing trends for:", inputStock)
         st.write("Result:", response.raw)
 
-        # 📊 Sentiment chart
+        # ------------------------------
+        # 📊 6. Visualization Section
+        # ------------------------------
         sentiments = []
         try:
             with open("articles.txt", "r") as file:
                 for line in file:
-                    if "sentiment" in line:
-                        try:
-                            score = float(line.split("'sentiment': ")[1].split("}")[0])
-                            sentiments.append(score)
-                        except:
-                            continue
+                    article = eval(line.strip())
+                    sentiments.append(float(article.get('sentiment', 0)))
         except FileNotFoundError:
-            st.warning("❌ No articles file found for sentiment chart.")
+            st.error("❌ No articles.txt file found.")
+            sentiments = []
 
         if sentiments:
+            # Categorize
             labels = []
             for s in sentiments:
                 if s > 0.05:
@@ -172,12 +179,17 @@ if st.button("Submit", type="primary"):
                 else:
                     labels.append("Neutral")
 
-            df = pd.DataFrame({"Sentiment": labels})
-            sentiment_counts = df["Sentiment"].value_counts()
+            sentiment_df = pd.DataFrame({"Sentiment": labels})
+            sentiment_counts = sentiment_df['Sentiment'].value_counts()
 
+            # 📊 Overview Metrics
             st.subheader("📊 Sentiment Overview")
-            st.write(sentiment_counts)
+            col1, col2, col3 = st.columns(3)
+            col1.metric("🟢 Positive", sentiment_counts.get("Positive", 0))
+            col2.metric("🔴 Negative", sentiment_counts.get("Negative", 0))
+            col3.metric("⚪ Neutral", sentiment_counts.get("Neutral", 0))
 
+            # 🥧 Pie Chart
             fig, ax = plt.subplots()
             ax.pie(
                 sentiment_counts.values,
@@ -188,8 +200,18 @@ if st.button("Submit", type="primary"):
             )
             ax.axis('equal')
             st.pyplot(fig)
+
+            # 📊 Bar Chart
+            st.bar_chart(sentiment_df['Sentiment'].value_counts())
+
+            # 🧮 Final Recommendation
+            st.subheader("📌 Investment Recommendation")
+            overall_sentiment_score = sum(sentiments) / len(sentiments)
+            if overall_sentiment_score > 0.05:
+                st.success("🟢 BUY — Market sentiment is positive.")
+            elif overall_sentiment_score < -0.05:
+                st.error("🔴 SELL — Market sentiment is negative.")
+            else:
+                st.warning("⚪ HOLD — Market sentiment is neutral.")
         else:
             st.warning("No sentiment data available to display charts.")
-
-    except Exception as e:
-        st.error(f"❌ Error during processing: {e}")
