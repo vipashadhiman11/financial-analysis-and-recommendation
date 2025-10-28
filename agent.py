@@ -23,7 +23,40 @@ st.write(
     "Hello, I am your financial advisor. I will give you a complete analysis of your stock or organisation. "
     "I will also recommend you if you should Buy / Sell / Hold the stock 😎"
 )
+def get_gainers(number):
+    response_gainers = requests.get("https://financialmodelingprep.com/stable/biggest-gainers?apikey=ES9nZy86YlYSEW9NkohutKivy2xDUfEq").json()
+    print(response_gainers)
+    count = 0
+    gainers = []
+    for response in response_gainers:
+        if count<number:
+            gainers.append({"name":response["name"],
+                            "percentage":response["changesPercentage"]})
+            count+=1
+    return gainers
+    
+def get_losers(number):
+    response_losers = requests.get("https://financialmodelingprep.com/stable/biggest-losers?apikey=ES9nZy86YlYSEW9NkohutKivy2xDUfEq").json()
+    count = 0
+    losers = []
+    for response in response_losers:
+        if count<number:
+            losers.append({"name":response["name"],
+                            "percentage":response["changesPercentage"]})
+            count+=1
+    return losers
 
+with st.sidebar:
+    st.title("Top 5 gainers:")
+    for gainer in get_gainers(5):
+        st.markdown(
+    ":green-badge["+gainer['name']+"] :blue-badge[+"+str(gainer['percentage'])+"%]"
+        )
+    st.title("Top 5 losers:")
+    for losers in get_losers(5):
+        st.markdown(
+    ":red-badge["+losers['name']+"] :blue-badge["+str(losers['percentage'])+"%]"
+        )
 
 # ---------------------------------------------------------
 # 📰 Plain helper to fetch articles (call this directly)
