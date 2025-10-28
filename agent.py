@@ -3,17 +3,16 @@ from crewai.tools import tool
 from datetime import date, timedelta
 from dotenv import load_dotenv
 import os
-import time
 import streamlit as st
 import requests
 import matplotlib.pyplot as plt
 import pandas as pd
 
-# 📌 Load environment variables (for GROQ key)
+# 📌 Load environment variables
 load_dotenv()
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 
-# 🧭 Streamlit Page Setup
+# 🧭 Streamlit UI
 st.set_page_config(page_title="Market Trends Analyst", layout="centered")
 st.title("Your Financial Advisor")
 st.write(
@@ -21,11 +20,9 @@ st.write(
     'I will also recommend you if you should Buy/ Sell or Hold the stock 😎'
 )
 
-# 📥 User input
 inputStock = st.text_input("Enter stock name or company name:")
 
 if st.button("Submit", type="primary"):
-    # ✅ LLM: Stable model from Groq
     llm = LLM(
         model="groq/llama-3.1-8b-instant",
         temperature=0.2,
@@ -47,45 +44,56 @@ if st.button("Submit", type="primary"):
         try:
             articles = []
             APITUBE_API_KEY = "api_live_auBHrOWRNh2UGkBZaczSeeOM5GNDnHd3ZqJNFbTT3gHUvg"
+
+            # 🗓 Dynamic date range: last 7 days
+            today = date.today()
+            last_week = today - timedelta(days=7)
+
             url = (
-                "https://api.apitube.io/v1/news/everything?title=" + entity +
-                "&published_at.start=2025-10-20&published_at.end=2025-10-25"
-                "&sort.order=desc&language.code=en&api_key=" + APITUBE_API_KEY
+                f"https://api.apitube.io/v1/news/everything?title={entity}"
+                f"&published_at.start={last_week}&published_at.end={today}"
+                f"&sort.order=desc&language.code=en&api_key={APITUBE_API_KEY}"
             )
-            response = requests.get(url).json()
+
+            # ⏳ API call with timeout
+            response = requests.get(url, timeout=15).json()
             count = 0
+
             if response.get("status") == "ok":
-                for result in response["results"]:
-                    count += 1
-                    article = {}
-                    article["article_body"] = result["body"]
-                    article["sentiment"] = result["sentiment"]["overall"]["score"]
-                    articles.append(article)
+                for result in response.get("results", []):
+                    if "sentiment" in result and "overall" in result["sentiment"]:
+                        count += 1
+                        article = {}
+                        article["article_body"] = result.get("body", "")
+                        article["sentiment"] = result["sentiment"]["overall"].get("score", 0)
+                        articles.append(article)
 
                 while response.get("has_next_pages"):
                     if count < 20:
                         next_page_url = response["next_page"]
-                        next_page_response = requests.get(next_page_url).json()
+                        next_page_response = requests.get(next_page_url, timeout=15).json()
                         if next_page_response.get("status") == "ok":
-                            for result in next_page_response["results"]:
-                                count += 1
-                                article = {}
-                                article["article_body"] = result["body"]
-                                article['sentiment'] = result["sentiment"]["overall"]["score"]
-                                articles.append(article)
+                            for result in next_page_response.get("results", []):
+                                if "sentiment" in result and "overall" in result["sentiment"]:
+                                    count += 1
+                                    article = {}
+                                    article["article_body"] = result.get("body", "")
+                                    article["sentiment"] = result["sentiment"]["overall"].get("score", 0)
+                                    articles.append(article)
                     else:
                         break
 
-            # Save sentiments to file for charts
+            # 📝 Save sentiments for charts
             with open("articles.txt", "w") as file:
                 for article in articles:
                     file.write(str(article) + "\n")
 
             return articles
+
         except Exception as e:
             return {"error": f"Failed to fetch articles: {e}"}
 
-    # 🧠 Define CrewAI Agents
+    # 🧠 Agents
     collector = Agent(
         role="Articles collector",
         goal="Collect articles for the given topic using the APItube tool.",
@@ -140,14 +148,13 @@ if st.button("Submit", type="primary"):
         verbose=False
     )
 
-    # 🚀 Run Crew and Show Results
+    # 🚀 Run Crew
     try:
         response = crew.kickoff(inputs={"topic": inputStock})
-        time.sleep(2)
         st.write("Analyzing trends for:", inputStock)
         st.write("Result:", response.raw)
 
-        # 📊 Pie Chart Visualization
+        # 📊 Sentiment chart
         sentiments = []
         try:
             with open("articles.txt", "r") as file:
@@ -177,7 +184,6 @@ if st.button("Submit", type="primary"):
             st.subheader("📊 Sentiment Overview")
             st.write(sentiment_counts)
 
-            # 🥧 Pie Chart
             fig, ax = plt.subplots()
             ax.pie(
                 sentiment_counts.values,
