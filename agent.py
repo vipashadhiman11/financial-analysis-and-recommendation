@@ -7,6 +7,7 @@ import streamlit as st
 import requests
 import matplotlib.pyplot as plt
 import pandas as pd
+import time
 
 # 📌 Load environment variables
 load_dotenv()
@@ -34,18 +35,11 @@ if st.button("Submit", type="primary"):
     def get_articles_APItube(entity: str) -> list[list]:
         """
         Fetch recent news articles and sentiment data for a given company or stock.
-
-        Args:
-            entity (str): The company or stock name to search for.
-
-        Returns:
-            list[list]: A list of articles with sentiment scores.
         """
         try:
             articles = []
             APITUBE_API_KEY = "api_live_auBHrOWRNh2UGkBZaczSeeOM5GNDnHd3ZqJNFbTT3gHUvg"
 
-            # 🗓 Dynamic date range: last 7 days
             today = date.today()
             last_week = today - timedelta(days=7)
 
@@ -55,7 +49,6 @@ if st.button("Submit", type="primary"):
                 f"&sort.order=desc&language.code=en&api_key={APITUBE_API_KEY}"
             )
 
-            # ⏳ API call with timeout
             response = requests.get(url, timeout=15).json()
             count = 0
 
@@ -148,9 +141,21 @@ if st.button("Submit", type="primary"):
         verbose=False
     )
 
-    # 🚀 Run Crew
-    try:
-        response = crew.kickoff(inputs={"topic": inputStock})
+    # 🚀 Run Crew with Retry on Rate Limit
+    response = None
+    for attempt in range(3):
+        try:
+            response = crew.kickoff(inputs={"topic": inputStock})
+            break
+        except Exception as e:
+            if "rate_limit" in str(e).lower():
+                st.warning(f"⚠️ Rate limit hit. Retrying in 3s... (Attempt {attempt+1}/3)")
+                time.sleep(3)
+            else:
+                st.error(f"❌ Error during processing: {e}")
+                raise
+
+    if response:
         st.write("Analyzing trends for:", inputStock)
         st.write("Result:", response.raw)
 
@@ -196,6 +201,3 @@ if st.button("Submit", type="primary"):
             st.pyplot(fig)
         else:
             st.warning("No sentiment data available to display charts.")
-
-    except Exception as e:
-        st.error(f"❌ Error during processing: {e}")
