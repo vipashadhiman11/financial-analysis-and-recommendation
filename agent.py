@@ -6,7 +6,6 @@ import matplotlib.pyplot as plt
 import streamlit as st
 from dotenv import load_dotenv
 from crewai import Agent, Task, Crew, LLM, Process
-from crewai.tools import tool
 
 # -------------------------------------------------------------------
 # 🔐 Load environment variables
@@ -26,9 +25,8 @@ st.write(
 )
 
 # -------------------------------------------------------------------
-# 🧰 Tool: Fetch Articles (APITube + NewsAPI Fallback)
+# 🧰 Fetch Articles (Normal Function - No @tool)
 # -------------------------------------------------------------------
-@tool("get_articles_APItube")
 def get_articles_APItube(entity: str) -> list:
     """
     Fetch articles for the given company using APITube.
@@ -63,8 +61,6 @@ def get_articles_APItube(entity: str) -> list:
             print(f"📰 Falling back to NewsAPI for {entity}...")
             news_url = f"https://newsapi.org/v2/everything?q={entity}&language=en&sortBy=publishedAt&pageSize=10&apiKey={NEWS_API_KEY}"
             news_response = requests.get(news_url).json()
-            print("🧾 NewsAPI response:", news_response)
-
             if news_response.get("status") == "ok" and news_response.get("articles"):
                 for item in news_response["articles"]:
                     articles.append({
@@ -90,8 +86,7 @@ def create_agents(llm):
     collector = Agent(
         role="Articles collector",
         goal="Collect news articles related to the stock/company.",
-        backstory="Use the tool 'get_articles_APItube' to fetch articles and their sentiment.",
-        tools=[get_articles_APItube],
+        backstory="Use API to fetch articles and their sentiment.",
         llm=llm,
         allow_delegation=False,
         verbose=False
@@ -230,7 +225,6 @@ if st.button("Submit", type="primary"):
     llm = LLM(model="groq/llama-3.1-8b-instant", temperature=0.2, top_p=0.9)
     collector, summerizer, analyser = create_agents(llm)
 
-    # ✅ FIXED — added expected_output
     collect = Task(
         description="Collect all the latest articles related to the stock/company.",
         expected_output="A list of relevant articles with basic sentiment scores.",
@@ -259,7 +253,6 @@ if st.button("Submit", type="primary"):
     try:
         articles = get_articles_APItube(inputStock)
 
-        # 🪄 Dynamic fallback if no articles
         if not articles or len(articles) == 0:
             st.warning(f"No real articles found for {inputStock}. Using sample data for demo.")
             company = inputStock
