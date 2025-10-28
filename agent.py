@@ -181,7 +181,6 @@ if st.button("Submit", type="primary"):
         role="Articles collector",
         goal="Collect news articles related to the stock/company.",
         backstory="Use the tool to fetch articles and their sentiment.",
-        tool=[get_articles_APItube_tool],   # attach Tool instance here
         llm=llm,
         allow_delegation=False,
         verbose=False
