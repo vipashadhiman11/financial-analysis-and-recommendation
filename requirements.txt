@@ -4,6 +4,6 @@ numpy
 matplotlib
 requests
 python-dotenv
-crewai
 litellm
+crewai>=0.35.0 # Use the latest stable version
 langchain-groq
