@@ -178,10 +178,12 @@ if st.button("Submit", type="primary"):
 
     # Agents
     collector = Agent(
-        role = "Articles collector",
-        goal = "Asks the user about the {topic} and collects the articles releated to that topic using tools.",
-        backstory = "The {topic} will be an organisation of stock name. Don't take any other input except topic,Use the tool 'get_articles_APItube_tool' to fetch the articles.Give the total number of articles collected.",
-        tools = [get_articles_APItube_tool],
+        role = "Data Processor & Article Counter", # Renamed role for clarity
+        # Goal changed to process the *existing* data
+        goal = "Read the articles stored in the 'articles.txt' file, count the total number of articles available, and extract the full text for the next agent.",
+        # Backstory changed to reflect no tool usage
+        backstory = "The {topic} is an organisation or stock name. Your job is to process the recently collected news articles saved in articles.txt. Do not use any tools.",
+        tools = [], # <--- CRITICAL FIX: REMOVE THE TOOL
         llm = llm,
         allow_delegation = False,
         verbose = False
@@ -212,18 +214,19 @@ if st.button("Submit", type="primary"):
     
     collect = Task(
         description = (
-            "1. The {topic} will be an organisation of stock name.\n"
-            "2. Use the tool to collect all the news articles on the provided {topic} using tool 'get_articles_APItube'.\n"
-            "3. Prioritize the latest trends and news on the {topic}.\n"
+            "1. Read the article body and sentiment from the 'articles.txt' file." # Changed step 1
+            "2. Count the total number of articles you processed."
+            "3. Summarize the content and provide a list of article sentiments (e.g., [0.7, -0.3, 0.6]).\n"
         ),
-        expected_output = "Articles related to the organisation or stock given by the user\n",
+        # Expected output should now reflect the contents of the file
+        expected_output = "The total number of articles found in the file, and the full content (body + sentiment) of all articles for analysis.",
         agent = collector
     )
     
     summerize = Task(
         description = (
             "1. Summerize the articles you collected from collector into maximum 500 words.\n"
-            "3. Prioritize the latest trends and news on the {topic}.\n"
+            "2. Prioritize the latest trends and news on the {topic}.\n" # Changed step 3 to 2
         ),
         expected_output = "Summerize the articles related to the organisation or stock given by the user\n",
         agent = summerizer
