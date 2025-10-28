@@ -24,8 +24,9 @@ st.write(
 inputStock = st.text_input("Enter stock name or company name:")
 
 if st.button("Submit", type="primary"):
+    # 🪶 Lighter model to reduce token usage
     llm = LLM(
-        model="groq/llama-3.1-8b-instant",
+        model="groq/llama3-8b-8192",
         temperature=0.2,
         top_p=0.9,
         max_tokens=512
@@ -141,21 +142,9 @@ if st.button("Submit", type="primary"):
         verbose=False
     )
 
-    # 🚀 Run Crew with Retry on Rate Limit
-    response = None
-    for attempt in range(3):
-        try:
-            response = crew.kickoff(inputs={"topic": inputStock})
-            break
-        except Exception as e:
-            if "rate_limit" in str(e).lower():
-                st.warning(f"⚠️ Rate limit hit. Retrying in 3s... (Attempt {attempt+1}/3)")
-                time.sleep(3)
-            else:
-                st.error(f"❌ Error during processing: {e}")
-                raise
-
-    if response:
+    # 🚀 Run Crew
+    try:
+        response = crew.kickoff(inputs={"topic": inputStock})
         st.write("Analyzing trends for:", inputStock)
         st.write("Result:", response.raw)
 
@@ -201,3 +190,6 @@ if st.button("Submit", type="primary"):
             st.pyplot(fig)
         else:
             st.warning("No sentiment data available to display charts.")
+
+    except Exception as e:
+        st.error(f"❌ Error during processing: {e}")
