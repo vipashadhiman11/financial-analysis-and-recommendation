@@ -1,8 +1,6 @@
 streamlit
-pandas
-numpy
-matplotlib
-requests
-python-dotenv
 crewai
 litellm
+matplotlib
+pandas
+requests
