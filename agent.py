@@ -9,6 +9,7 @@ import requests
 import matplotlib.pyplot as plt
 import pandas as pd
 
+# 📌 Load environment variables (for GROQ key)
 load_dotenv()
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 
@@ -20,13 +21,13 @@ st.write(
     'I will also recommend you if you should Buy/ Sell or Hold the stock 😎'
 )
 
-# 📥 Input box
+# 📥 User input
 inputStock = st.text_input("Enter stock name or company name:")
 
 if st.button("Submit", type="primary"):
-    # ✅ Lightweight Groq model to prevent rate-limit issues
+    # ✅ LLM: Stable model from Groq
     llm = LLM(
-        model="groq/gemini-2.5-flash-lite",
+        model="groq/llama-3.1-8b-instant",
         temperature=0.2,
         top_p=0.9,
         max_tokens=512
@@ -44,7 +45,6 @@ if st.button("Submit", type="primary"):
             list[list]: A list of articles with sentiment scores.
         """
         try:
-            print("Running API")
             articles = []
             APITUBE_API_KEY = "api_live_auBHrOWRNh2UGkBZaczSeeOM5GNDnHd3ZqJNFbTT3gHUvg"
             url = (
@@ -61,6 +61,7 @@ if st.button("Submit", type="primary"):
                     article["article_body"] = result["body"]
                     article["sentiment"] = result["sentiment"]["overall"]["score"]
                     articles.append(article)
+
                 while response.get("has_next_pages"):
                     if count < 20:
                         next_page_url = response["next_page"]
@@ -74,10 +75,12 @@ if st.button("Submit", type="primary"):
                                 articles.append(article)
                     else:
                         break
-            # Save for sentiment chart
+
+            # Save sentiments to file for charts
             with open("articles.txt", "w") as file:
                 for article in articles:
                     file.write(str(article) + "\n")
+
             return articles
         except Exception as e:
             return {"error": f"Failed to fetch articles: {e}"}
@@ -140,7 +143,7 @@ if st.button("Submit", type="primary"):
     # 🚀 Run Crew and Show Results
     try:
         response = crew.kickoff(inputs={"topic": inputStock})
-        time.sleep(2)  # small delay to prevent burst rate limits
+        time.sleep(2)
         st.write("Analyzing trends for:", inputStock)
         st.write("Result:", response.raw)
 
