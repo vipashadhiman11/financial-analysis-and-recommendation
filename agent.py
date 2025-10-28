@@ -23,12 +23,12 @@ inputStock = st.text_input("Enter stock name or company name:")
 # ✅ Normal function (NO @tool)
 def get_articles_APItube(entity: str) -> list:
     """
-    Fetch news articles from API Tube for the given entity (company or stock).
-    Returns a list of articles with sentiment scores and publication date.
+    Fetch articles from APITube, and if that fails or returns no articles,
+    fallback to NewsAPI to fetch real news headlines for the given entity.
     """
+    articles = []
     try:
-        print("Running API")
-        articles = []
+        print("🛰️ Trying APITube first...")
         APITUBE_API_KEY = "api_live_auBHrOWRNh2UGkBZaczSeeOM5GNDnHd3ZqJNFbTT3gHUvg"
         url = (
             "https://api.apitube.io/v1/news/everything?title=" + entity +
@@ -36,38 +36,44 @@ def get_articles_APItube(entity: str) -> list:
             "&sort.order=desc&language.code=en&api_key=" + APITUBE_API_KEY
         )
         response = requests.get(url).json()
-        count = 0
-        if response["status"] == "ok":
-            for result in response["results"]:
-                count += 1
-                article = {}
-                article["article_body"] = result["body"]
-                article["sentiment"] = result["sentiment"]["overall"]["score"]
-                article["published_at"] = result.get("published_at", "")
-                articles.append(article)
-            while response["has_next_pages"]:
-                if count < 20:
-                    next_page_url = response["next_page"]
-                    next_page_response = requests.get(next_page_url).json()
-                    if next_page_response["status"] == "ok":
-                        for result in next_page_response["results"]:
-                            count += 1
-                            article = {}
-                            article["article_body"] = result["body"]
-                            article["sentiment"] = result["sentiment"]["overall"]["score"]
-                            article["published_at"] = result.get("published_at", "")
-                            articles.append(article)
-                else:
-                    break
 
+        if response.get("status") == "ok" and response.get("results"):
+            for result in response["results"]:
+                articles.append({
+                    "article_body": result["body"],
+                    "sentiment": result["sentiment"]["overall"]["score"],
+                    "published_at": result.get("published_at", "")
+                })
+
+    except Exception as e:
+        print(f"⚠️ APITube error: {e}")
+
+    # 🛑 If APITube gave nothing → try NewsAPI
+    if not articles:
+        try:
+            print("📰 Falling back to NewsAPI...")
+            NEWS_API_KEY = os.getenv("4850da14d83f4ddd92e0bf64caad7d96")
+            news_url = f"https://newsapi.org/v2/everything?q={entity}&language=en&sortBy=publishedAt&pageSize=10&apiKey={NEWS_API_KEY}"
+            news_response = requests.get(news_url).json()
+
+            if news_response.get("status") == "ok" and news_response.get("articles"):
+                for item in news_response["articles"]:
+                    # No sentiment from NewsAPI → set default neutral or 0
+                    articles.append({
+                        "article_body": item["title"] + " " + (item.get("description") or ""),
+                        "sentiment": 0.0,
+                        "published_at": item.get("publishedAt", "")
+                    })
+        except Exception as e:
+            print(f"⚠️ NewsAPI fallback error: {e}")
+
+    # Save fetched articles to file
+    if articles:
         with open("articles.txt", "w") as file:
             for article in articles:
                 file.write(str(article) + "\n")
 
-        return articles
-
-    except Exception as e:
-        return {"error": f"Failed to fetch articles: {e}"}
+    return articles
 
 if st.button("Submit", type="primary"):
     # 🧠 Initialize model
