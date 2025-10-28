@@ -29,6 +29,12 @@ inputStock = st.text_input("Enter stock name or company name (e.g., Apple, TSLA)
 
 # Define the Groq model we will use (use a valid, fast Groq model)
 GROQ_MODEL = "mixtral-8x7b-32768" 
+# ...
+llm = LLM(
+    model=GROQ_MODEL,
+    temperature=0.2,
+    top_p=0.9
+)
 
 if st.button("Submit", type="primary"):
     if not GROQ_API_KEY:
