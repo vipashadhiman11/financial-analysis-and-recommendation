@@ -29,6 +29,15 @@ if st.button("Submit", type="primary"):
 
     @tool("get_articles_APItube")
     def get_articles_APItube(entity: str) -> list[list]:
+        """
+        Fetch recent news articles and sentiment data for a given company or stock.
+
+        Args:
+            entity (str): The company or stock name to search for.
+
+        Returns:
+            list[list]: A list of articles with sentiment scores.
+        """
         try:
             print("Running API")
             articles = []
@@ -69,8 +78,16 @@ if st.button("Submit", type="primary"):
 
     @tool("sentiment_analysis")
     def sentiment_analysis(articles: list[str]) -> str:
+        """
+        Run sentiment analysis on article text using FinBERT.
+
+        Args:
+            articles (list[str]): A list of article texts.
+
+        Returns:
+            str: Sentiment labels and scores.
+        """
         from transformers import pipeline
-        print("🧠 Loading FinBERT model...")
         model = pipeline("sentiment-analysis", model="ProsusAI/finbert")
         sentiments = []
         for text in articles:
@@ -84,7 +101,7 @@ if st.button("Submit", type="primary"):
     collector = Agent(
         role="Articles collector",
         goal="Asks the user about the {topic} and collects the articles releated to that topic using tools.",
-        backstory="The {topic} will be an organisation of stock name. Don't take any other input except topic"
+        backstory="The {topic} will be an organisation of stock name. Don't take any other input except topic. "
                   "Use the tool 'get_articles_APItube' to fetch the articles.\n"
                   "Give the total number of articles collected.",
         tools=[get_articles_APItube],
@@ -105,12 +122,12 @@ if st.button("Submit", type="primary"):
     analyser = Agent(
         role="Financial Analyst",
         goal="You will guide user to either Buy/Sell or Hold the stock of the organisation.",
-        backstory="You will observe the sentiment all the article."
-                  "You are working on identifying latest trends about the topic: {topic}."
-                  "You will take the input from the collector agent\n"
-                  "After that you will predict the overall sentiment as positive, negative or neutral."
-                  "Based on the sentiment predicted by you, you will tell us whether we should buy/sell or hold the stock for now."
-                  "your target is to maximise user profit.",
+        backstory="You will observe the sentiment all the article. "
+                  "You are working on identifying latest trends about the topic: {topic}. "
+                  "You will take the input from the collector agent. "
+                  "After that you will predict the overall sentiment as positive, negative or neutral. "
+                  "Based on the sentiment predicted by you, you will tell us whether we should buy/sell or hold the stock for now. "
+                  "Your target is to maximise user profit.",
         llm=llm,
         allow_delegation=False,
         verbose=False
@@ -156,11 +173,12 @@ if st.button("Submit", type="primary"):
     )
 
     try:
+        # Run Crew
         response = crew.kickoff(inputs={"topic": inputStock})
         st.write("Analysing trends for: ", inputStock)
         st.write("Result:", response.raw)
 
-        # 🧮 --- Sentiment visualization ---
+        # 📊 Sentiment Visualization Section
         sentiments = []
         try:
             with open("articles.txt", "r") as file:
@@ -190,7 +208,7 @@ if st.button("Submit", type="primary"):
             st.subheader("📊 Sentiment Overview")
             st.write(sentiment_counts)
 
-            # 🥧 Pie chart
+            # 🥧 Pie Chart
             fig, ax = plt.subplots()
             ax.pie(
                 sentiment_counts.values,
@@ -205,4 +223,4 @@ if st.button("Submit", type="primary"):
             st.warning("No sentiment data available to display charts.")
 
     except Exception as e:
-        st.write(f"An error occured: {e}")
+        st.error(f"❌ Error during processing: {e}")
