@@ -1,263 +1,179 @@
-import os
-import json
-import requests
-from datetime import date, timedelta
-from typing import Dict, Any
 
-# Data Visualization and Streamlit
-import streamlit as st
-import matplotlib.pyplot as plt
 
-# CrewAI & LLM
-from crewai import Agent, Task, Crew, Process
+from crewai import Agent, Task, Crew, LLM, Process
 from crewai.tools import tool
+from datetime import date,timedelta
 from dotenv import load_dotenv
-
-# CRITICAL FIX: Import the ChatGroq model explicitly
-# Note: You MUST have 'langchain-groq' installed in your environment.
-from langchain_groq import ChatGroq
-
-# --- Configuration & Setup ---
+import os
+import streamlit as st
 
 load_dotenv()
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
-# NOTE: Using a placeholder for APITUBE_API_KEY for the tool to work
-APITUBE_API_KEY = os.environ.get("APITUBE_API_KEY", "api_live_auBHrOWRNh2UGkBZaczSeeOM5GNDnHd3ZqJNFbTT3gHUvg")
 
-# --- Streamlit UI Setup ---
-st.set_page_config(page_title="Market Trends Analyst", layout="centered")
+st.set_page_config(page_title = "Market Trends Analyst", layout = "centered")
 st.title("Your Financial Advisor")
-st.write('Hello, I am your financial advisor. I will give you a complete analysis of your stock or organisation. I will also recommend you if you should **Buy/Sell or Hold** the stock :sunglasses:')
+st.write('Hello, I am your financial advisor. I will give you a complete analysis of your stock or organisation. I will also recomment you if you should Buy/ Sell or Hold the stock :sunglasses:')
 
-inputStock = st.text_input("Enter stock name or company name (e.g., Apple, TSLA):")
-
-# Define the Groq model we will use
-GROQ_MODEL = "mixtral-8x7b-32768" 
+inputStock = st.text_input("Enter stock name or company name:")
+# if user_name:
 
 if st.button("Submit", type="primary"):
-    if not GROQ_API_KEY:
-        st.error("❌ **Error:** GROQ_API_KEY not found in your environment variables. Please check your `.env` file.")
-        st.stop()
-        
-    if not inputStock:
-        st.error("Please enter a stock or company name to analyze.")
-        st.stop()
-        
-    # --- LLM Initialization (CRITICAL FIX) ---
-    st.info(f"Connecting to Groq using model: **{GROQ_MODEL}**")
-    
-    try:
-        # 1. Instantiate the Groq client directly using the explicit class.
-        # This object is a direct LangChain runnable.
-        groq_llm_instance = ChatGroq(
-            temperature=0.2, 
-            model_name=GROQ_MODEL,
-            groq_api_key=GROQ_API_KEY # Explicitly pass key for robustness
+    llm = LLM(model = "groq/openai/gpt-oss-120b",
+            temperature = 0.2,
+            # max_completion_tokens = 256,
+            top_p = 0.9
         )
-    except Exception as e:
-        st.error(f"❌ **LLM Initialization Error:** Failed to create ChatGroq instance. Ensure `langchain-groq` is installed and the model name is correct. Error: {e}")
-        st.stop()
     
-    # --- Tools Definition ---
     @tool("get_articles_APItube")
-    def get_articles_APItube(entity: str) -> str:
-        """
-        Fetches news articles, extracts sentiment labels, and returns a string 
-        with the article summaries and the final sentiment counts as JSON.
-        
-        args:
-            entity: name of any organisation or stock 
-        """
-        
-        # Calculate start and end dates dynamically (e.g., last 5 days)
-        end_date = date.today()
-        start_date = end_date - timedelta(days=5)
-        
-        url = (
-            f"https://api.apitube.io/v1/news/everything?title={entity}"
-            f"&published_at.start={start_date}&published_at.end={end_date}"
-            f"&sort.order=desc&language.code=en&api_key={APITUBE_API_KEY}"
-        )
-        
-        try:
-            response = requests.get(url).json()
-            articles = []
-            pos, neg, neu = 0, 0, 0
-            
-            if response.get("status") == "ok":
-                for result in response.get("results", []):
-                    # Limit articles to a manageable number for the LLM
-                    if len(articles) >= 15: 
-                        break
-
-                    score = result["sentiment"]["overall"]["score"]
-                    if score >= 0.3:
-                        label, pos = "Positive", pos + 1
-                    elif score <= -0.3:
-                        label, neg = "Negative", neg + 1
-                    else:
-                        label, neu = "Neutral", neu + 1
-                            
-                    title = result.get('title', 'No Title')
-                    body_snippet = result.get('body', 'No Body')[:200]
-                    
-                    article_summary = f"Sentiment: {label}. Title: {title}. Body: {body_snippet}..."
-                    articles.append(article_summary)
-                
-                # Generate the JSON string for the next agent
-                sentiment_counts_json = json.dumps({
-                    "Positive": pos,
-                    "Negative": neg,
-                    "Neutral": neu
-                })
-                
-                final_output = (
-                    f"Total articles collected: {len(articles)}\n"
-                    f"Summary of articles (max 15):\n"
-                    f"{'---'.join(articles)}\n\n"
-                    f"SENTIMENT_COUNTS_JSON: {sentiment_counts_json}"
-                )
-                return final_output
+    def get_articles_APItube(entity: str) -> list[list]:
+      """
+      This function will take the entity as an input and returns the list of all articles collected with their sentiment.
+    
+      args:
+        entity: name of any organisation or stock 
+      """
+      try:
+        print("Running API")
+        articles = []
+        APITUBE_API_KEY="api_live_auBHrOWRNh2UGkBZaczSeeOM5GNDnHd3ZqJNFbTT3gHUvg"
+        # today = date.today()
+        # last_week_same_day = today - timedelta(weeks=1)
+        url = "https://api.apitube.io/v1/news/everything?title="+entity+"&published_at.start=2025-10-20&published_at.end=2025-10-25&sort.order=desc&language.code=en&api_key="+APITUBE_API_KEY
+        response = requests.get(url).json()
+        count = 0
+        if response["status"] == "ok":
+          for result in response["results"]:
+            count+=1
+            article = {}
+            article["article_body"] = result["body"]
+            article["sentiment"] = result["sentiment"]["overall"]["score"]
+            articles.append(article)
+          while response["has_next_pages"]:
+            if count<20:
+              next_page_url = response["next_page"]
+              next_page_response = requests.get(url).json()
+              if response["status"] == "ok":
+                for result in response["results"]:
+                  count+=1
+                  article = {}
+                  article["article_body"] = result["body"]
+                  article['sentiment'] = result["sentiment"]["overall"]["score"]
+                  articles.append(article)
             else:
-                return f"Failed to fetch articles. API returned status: {response.get('status', 'N/A')} with message: {response.get('message', 'No message.')}"
-                
-        except requests.exceptions.RequestException as e:
-            return f"Failed to fetch articles due to connection error: {e}"
-        except Exception as e:
-            return f"Failed to fetch articles due to an unexpected exception: {e}"
+              break
+        print(articles)
+        with open("articles.txt", "w") as file:
+          for article in articles:
+            file.write(str(article)+"\n")
+        print("articles"+articles)
+        return articles
+      except Exception as e:
+          return {"error": f"Failed to read URL {e}"}
 
-    # --- Agents Definition (LLM assigned later to bypass validation) ---
-
+    @tool("sentiment_analysis")
+    def sentiment_analysis(articles: list[str]) -> str:
+        """
+        Identify the sentiment of the article as positive, negative or neutral
+        Args:
+            article: List of string input that accepts a list of articles
+        Returns:
+            gives the sentiment of the article as:
+                - Positive
+                - Negative
+                - Neutral
+        """
+        print("🧠 Loading FinBERT model...")
+        model = pipeline("sentiment-analysis", model="ProsusAI/finbert")
+        sentiments = []
+        print("======text_list", text_list)
+        for text in text_list:
+            if not text:
+                sentiments.append({"label": "neutral", "score": 0.0})
+            continue
+        result = model(text[:512])[0]
+        sentiments.append(result)
+        print("=====sentiments", sentiments)
+        return sentiments
+    
     collector = Agent(
-        role="Articles collector",
-        goal="Collect news articles and extract sentiment data for {topic} using the available tool.",
-        backstory="Your task is to use the 'get_articles_APItube' tool to fetch news. You MUST ensure the final output contains the sentiment counts in the exact 'SENTIMENT_COUNTS_JSON' format for the next agent.",
-        tools=[get_articles_APItube],
-        llm=None, # Pass None initially
-        allow_delegation=False,
-        verbose=False
+        role = "Articles collector",
+        goal = "Asks the user about the {topic} and collects the articles releated to that topic using tools.",
+        backstory = "The {topic} will be an organisation of stock name. Don't take any other input except topic"
+                    "Use the tool 'get_articles_APItube' to fetch the articles.\n"
+                    "Give the total number of articles collected.",
+        tools = [get_articles_APItube],
+        llm = llm,
+        allow_delegation = False,
+        verbose = False
     )
-    # Manual LLM assignment
-    collector.llm = groq_llm_instance
     
     summerizer = Agent(
-        role="Article summerizer",
-        goal="Summarize the key findings from the collected articles and ensure sentiment counts are preserved.",
-        backstory="You are summarizing all article findings into one report, focusing on market trends. You MUST copy the 'SENTIMENT_COUNTS_JSON' from the input to the end of your output.",
-        llm=None, # Pass None initially
-        allow_delegation=False,
-        verbose=False
+        role = "Article summerizer",
+        goal = "Summerize the articles collected by collector and summerize them to fetch the crux of it",
+        backstory = "You are summerizing all the articles into one with utmost precision and keeping in mind the trends we are getting from the articles.",
+        llm = llm,
+        allow_delegation = False,
+        verbose = False
     )
-    # Manual LLM assignment
-    summerizer.llm = groq_llm_instance
     
     analyser = Agent(
-        role="Financial Analyst",
-        goal="Provide a clear recommendation (Buy/Sell/Hold) based on the overall market sentiment for {topic}.",
-        backstory=(
-            "You are a Senior Financial Analyst. You must use the sentiment summary and counts from the previous tasks "
-            "to determine the overall market sentiment and provide a clear, justified **Buy, Sell, or Hold** recommendation. "
-            "Your final output MUST also contain the `SENTIMENT_COUNTS_JSON` at the end."
-        ),
-        llm=None, # Pass None initially
-        allow_delegation=False,
-        verbose=False
+        role = "Financial Analyst",
+        goal = "You will guide user to either Buy/Sell or Hold the stock of the organisation.",
+        backstory = "You will observe the sentiment all he article."
+                    "You are working on identifying latest trends about the topic: {topic}."
+                    "You will take the input from the collector agent\n"
+                    "After that you will predict the overall sentiment as positive, negative or neutral."
+                    "Based on the sentiment predicted by you, you will tell us whether we should buy/sell or hold the stock for now."
+                    "your target is to maximise user profit.",
+        llm = llm,
+        allow_delegation = False,
+        verbose = False
     )
-    # Manual LLM assignment
-    analyser.llm = groq_llm_instance
-    
-    # --- Tasks Definition ---
-    
-    # Expected output is crucial for forcing the format transfer between agents
-    json_output_format = "`SENTIMENT_COUNTS_JSON: {\"Positive\": <count>, \"Negative\": <count>, \"Neutral\": <count>}`"
     
     collect = Task(
-        description=(
-            "1. Use the tool 'get_articles_APItube' to collect all the news articles on the provided {topic}.\n"
-            "2. Ensure the output is structured to pass the article summaries and the sentiment counts in the required JSON format."
+        description = (
+            "1. The {topic} will be an organisation of stock name.\n"
+            "2. Use the tool to collect all the news articles on the provided {topic} using tool 'get_articles_APItube'.\n"
+            "3. Prioritize the latest trends and news on the {topic}.\n"
         ),
-        expected_output=f"A summary of articles and the final sentiment counts in the exact JSON format: {json_output_format}",
-        agent=collector
+        expected_output = "Articles related to the organisation or stock given by the user\n",
+        agent = collector
     )
     
     summerize = Task(
-        description=(
-            "1. Summarize the articles collected from the previous task into a maximum 500-word report.\n"
-            "2. **Crucially**, copy the entire string starting with `SENTIMENT_COUNTS_JSON:` from the previous task's result to the end of your summary."
+        description = (
+            "1. Summerize the articles you collected from collector into maximum 500 words.\n"
+            "3. Prioritize the latest trends and news on the {topic}.\n"
         ),
-        expected_output=f"A concise summary of the articles followed by the exact sentiment counts in the JSON format: {json_output_format}",
-        agent=summerizer
+        expected_output = "Summerize the articles related to the organisation or stock given by the user\n",
+        agent = summerizer
     )
     
     analyse = Task(
-        description=(
-            "1. Use the summary and sentiment counts to perform a detailed financial analysis on {topic}.\n"
-            "2. Identify the overall market sentiment (Positive, Negative, or Neutral) based on the counts.\n"
-            "3. Provide a clear recommendation: **Buy, Sell, or Hold**.\n"
-            "4. Your final output MUST end by repeating the entire string starting with `SENTIMENT_COUNTS_JSON:` from the previous task."
+        description = (
+            "1. Use the content collected to create an opinion on {topic}.\n"
+            "2. Use the collected articles to identify trends in the market\n"
+            "3. Based on the trends observed try to identify overall sentiment of the market as positive/negative or neutral.\n"
+            "4. Once the sentiment is identified guide the user to either Buy/sell or hold the stock of the company or organisation provided.\n"
+            "5. Ensure the proper analysis and provide detailed analysis.\n"
+            "6. Tell the total number of articles you used for analysis.\n"
         ),
-        expected_output=f"Provide a detailed analysis, a Buy/Sell/Hold recommendation, and the sentiment counts in the required JSON format at the end: {json_output_format}",
-        agent=analyser
+        expected_output = "Provide overall Sentiment about the topic as positive/negative or neutral and based on it guide us if we should buy/ sell or hold the stock.",
+        agent = analyser
     )
     
-    # --- Crew Setup & Execution ---
-    
     crew = Crew(
-        agents=[collector, summerizer, analyser],
-        tasks=[collect, summerize, analyse],
+        agents = [collector, summerizer, analyser],
+        tasks = [collect, summerize, analyse],
         process=Process.sequential,
-        verbose=True
+        verbose = False
     )
     
     try:
-        with st.spinner(f"🚀 Analysing trends for: **{inputStock}** using Groq's {GROQ_MODEL}..."):
-            full_result = crew.kickoff(inputs={"topic": inputStock})
+        response = crew.kickoff(inputs = {"topic": inputStock})
+        st.write("Analysing trends for: ", inputStock)
+        st.write("Result:", response.raw)
+    
         
-        st.subheader(f"📈 Financial Analysis for **{inputStock}**")
-        st.divider()
-        
-        # --- Streamlit Output & Pie Chart Generation ---
-        json_start_tag = "SENTIMENT_COUNTS_JSON:"
-        
-        if json_start_tag in full_result:
-            parts = full_result.split(json_start_tag, 1)
-            analysis_text = parts[0].strip()
-            json_str = parts[-1].strip()
-            
-            json_str = json_str.replace('```json', '').replace('```', '').strip()
-            
-            try:
-                sentiment_counts = json.loads(json_str)
-                
-                st.subheader("📝 Analyst Report")
-                st.markdown(analysis_text)
-                st.divider()
-                
-                st.subheader("📊 Sentiment Distribution of News Articles")
-                
-                labels = list(sentiment_counts.keys())
-                sizes = list(sentiment_counts.values())
-                
-                if sum(sizes) > 0:
-                    color_map = {"Positive": '#4CAF50', "Negative": '#F44336', "Neutral": '#FFEB3B'}
-                    colors = [color_map.get(label, '#CCCCCC') for label in labels]
-                    
-                    fig, ax = plt.subplots(figsize=(6, 6))
-                    ax.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=90, colors=colors, 
-                           wedgeprops={'edgecolor': 'black'})
-                    ax.axis('equal')
-                    
-                    st.pyplot(fig)
-                else:
-                    st.warning("No articles were found to generate the sentiment chart.")
-                
-            except json.JSONDecodeError as e:
-                st.error(f"❌ **Error:** Failed to parse sentiment counts for chart. The LLM output might be malformed JSON. Error: {e}")
-                st.caption(f"Raw JSON string received: `{json_str}`") 
-            
-        else:
-            st.warning("⚠️ **Warning:** The final analysis did not contain the required sentiment counts for charting. Please check the `verbose` output above for intermediate errors.")
-            st.write("Result (Raw):", full_result)
-            
     except Exception as e:
-        st.error(f"❌ **CrewAI Kickoff Error:** An error occurred during the analysis process. Check your API keys and configuration. Error: {e}")
+        st.write(f"An error occured: {e}")
