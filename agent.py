@@ -170,7 +170,7 @@ if st.button("Submit", type="primary"):
     collect = Task(
         description = (
             "1. The {topic} will be an organisation of stock name.\n"
-            "2. Use the tool to collect all the news articles on the provided {topic} using tool 'get_articles_APItube'.\n"
+            "2. Use the tool to collect all the news articles on the provided {topic}.\n"
             "3. Prioritize the latest trends and news on the {topic}.\n"
         ),
         expected_output = "Articles related to the organisation or stock given by the user\n",
