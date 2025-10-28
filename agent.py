@@ -183,7 +183,7 @@ if st.button("Submit", type="primary"):
         backstory = "The {topic} will be an organisation of stock name. Don't take any other input except topic"
                     "Use the tool 'get_articles_APItube' to fetch the articles.\n"
                     "Give the total number of articles collected.",
-        tools = [get_articles_APItube],
+        tools = [_fetch_articles_apitube],
         llm = llm,
         allow_delegation = False,
         verbose = False
