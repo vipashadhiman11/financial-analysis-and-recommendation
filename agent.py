@@ -12,7 +12,7 @@ from crewai import Agent, Task, Crew, LLM, Process
 # -------------------------------------------------------------------
 load_dotenv()
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
-NEWS_API_KEY = os.environ.get("NEWS_API_KEY")
+NEWS_API_KEY = "4850da14d83f4ddd92e0bf64caad7d96"
 
 # -------------------------------------------------------------------
 # 🖥️ Streamlit UI Setup
