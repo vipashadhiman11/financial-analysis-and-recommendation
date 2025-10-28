@@ -178,12 +178,15 @@ if st.button("Submit", type="primary"):
 
     # Agents
     collector = Agent(
-        role="Articles collector",
-        goal="Collect news articles related to the stock/company.",
-        backstory="Use the tool to fetch articles and their sentiment.",
-        llm=llm,
-        allow_delegation=False,
-        verbose=False
+        role = "Articles collector",
+        goal = "Asks the user about the {topic} and collects the articles releated to that topic using tools.",
+        backstory = "The {topic} will be an organisation of stock name. Don't take any other input except topic"
+                    "Use the tool 'get_articles_APItube' to fetch the articles.\n"
+                    "Give the total number of articles collected.",
+        tools = [get_articles_APItube],
+        llm = llm,
+        allow_delegation = False,
+        verbose = False
     )
 
     summerizer = Agent(
