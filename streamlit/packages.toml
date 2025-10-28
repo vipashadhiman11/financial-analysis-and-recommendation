@@ -1,0 +1,5 @@
+# .streamlit/packages.toml
+
+[general]
+# Set a stable, fully supported Python version
+python_version = "3.11"
